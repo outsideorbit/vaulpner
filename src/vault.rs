@@ -9,7 +9,3 @@ pub async fn client() -> VaultClient {
         .unwrap();
     VaultClient::new(settings).unwrap()
 }
-
-// pub async fn initialized(client: &VaultClient) -> bool {
-//     false
-// }

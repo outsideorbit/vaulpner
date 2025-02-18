@@ -14,6 +14,8 @@ use vaultrs::client::{Client, VaultClient};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let vault: VaultClient = vault::client().await;
-    info!(("Vault client initialized: {:?}", vault));
+    info!("Vault settings: {:?}", vault.settings);
+    info!("Vault status: {:?}", vault.status().await?);
+
     Ok(())
 }
