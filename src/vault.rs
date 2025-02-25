@@ -2,7 +2,9 @@
  */
 
 use vaultrs::client::{Client, VaultClient, VaultClientSettingsBuilder};
+use vaultrs::api::sys::requests::StartInitializationRequest;
 use tracing::*;
+use vaultrs::{error::ClientError, api::sys::responses::StartInitializationResponse};
 
 pub async fn client() -> VaultClient {
     let settings: vaultrs::client::VaultClientSettings = VaultClientSettingsBuilder::default()
@@ -12,22 +14,24 @@ pub async fn client() -> VaultClient {
 }
 
 
+pub async fn initialize(vault: &VaultClient) -> Result<StartInitializationResponse, ClientError> {
+    let mut opts = StartInitializationRequest::builder();
+    let resp = vaultrs::sys::start_initialization(vault, 1, 1, Some(&mut opts)).await;
+    resp
+}
 
 pub async fn ensure() {
     let vault: VaultClient = client().await;
-    info!("Vault settings: {:?}", vault.settings);
+    debug!("Vault settings: {:?}", vault.settings);
     let status = vault.status().await;
     match status {
         Ok(vaultrs::sys::ServerStatus::UNINITIALIZED) => {
             info!("Vault is uninitialized");
-            let secret_shares = 1; // Define secret_shares
-            let secret_threshold = 1; // Define secret_threshold
-            let opts = vaultrs::
-            let init_resp = vaultrs::sys::start_initialization(
-                &vault,
-                secret_shares,
-                secret_threshold, _).await;
-            info!("Vault initialization response: {:?}", init_resp);
+            let init_resp = initialize(&vault).await;
+            debug!("Vault initialization response: {:?}", init_resp);
+            if init_resp.is_err() {
+                error!("Error initializing Vault: {:?}", init_resp.as_ref().err());
+            }
         }
         Ok(vaultrs::sys::ServerStatus::SEALED) => {
             info!("Vault is sealed");
@@ -35,7 +39,7 @@ pub async fn ensure() {
         Ok(status) => {
             info!("Vault status: {:?}", status);
         }
-        Err(e) => {
+        Err(ref e) => {
             error!("Error getting Vault status: {:?}", e);
         }
     }
