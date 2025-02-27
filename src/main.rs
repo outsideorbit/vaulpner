@@ -7,7 +7,7 @@ use tracing::*;
 use vaultrs::client::Client;
 
 pub async fn ensure(vault: &vaultrs::client::VaultClient) -> bool {
-    let result = false;
+    let mut result = false;
     let status = vault.status().await;
     match status {
         Ok(vaultrs::sys::ServerStatus::UNINITIALIZED) => {
@@ -15,6 +15,7 @@ pub async fn ensure(vault: &vaultrs::client::VaultClient) -> bool {
         }
         Ok(status) => {
             info!("Vault status: {:?}", status);
+            result = true;
         }
         Err(ref e) => {
             error!("Error getting Vault status: {:?}", e);

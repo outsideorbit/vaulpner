@@ -3,7 +3,6 @@
 
 use vaultrs::client::{Client, VaultClient, VaultClientSettingsBuilder};
 use vaultrs::api::sys::requests::StartInitializationRequest;
-use tracing::*;
 use vaultrs::{error::ClientError, api::sys::responses::StartInitializationResponse};
 
 pub async fn client() -> VaultClient {
@@ -20,27 +19,7 @@ pub async fn initialize(vault: &VaultClient) -> Result<StartInitializationRespon
     resp
 }
 
-pub async fn ensure() {
-    let vault: VaultClient = client().await;
-    debug!("Vault settings: {:?}", vault.settings);
-    let status = vault.status().await;
-    match status {
-        Ok(vaultrs::sys::ServerStatus::UNINITIALIZED) => {
-            info!("Vault is uninitialized");
-            let init_resp = initialize(&vault).await;
-            debug!("Vault initialization response: {:?}", init_resp);
-            if init_resp.is_err() {
-                error!("Error initializing Vault: {:?}", init_resp.as_ref().err());
-            }
-        }
-        Ok(vaultrs::sys::ServerStatus::SEALED) => {
-            info!("Vault is sealed");
-        }
-        Ok(status) => {
-            info!("Vault status: {:?}", status);
-        }
-        Err(ref e) => {
-            error!("Error getting Vault status: {:?}", e);
-        }
-    }
-}
+// pub async fn unseal(vault: &VaultClient) -> Result<(), ClientError>  {
+//     let resp = vaultrs::sys::unseal(vault, "1234567890").await;
+//     resp
+// }
