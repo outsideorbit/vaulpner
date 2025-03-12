@@ -1,17 +1,21 @@
 /*
  */
 
+mod k8s;
 mod vault;
 
 use tracing::*;
 use vaultrs::client::Client;
 
-pub async fn ensure(vault: &vaultrs::client::VaultClient) -> bool {
+
+pub async fn ensure(vault: &vaultrs::client::VaultClient, k8s_client: &kube::Client) -> bool {
     let mut result = false;
     let status = vault.status().await;
     match status {
         Ok(vaultrs::sys::ServerStatus::UNINITIALIZED) => {
             info!("Vault is uninitialized");
+
+            
         }
         Ok(status) => {
             info!("Vault status: {:?}", status);
@@ -29,10 +33,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let vault = vault::client().await;
     info!("Vault settings: {:?}", vault.settings);
-    let max_count = 10;
+    let k8s_client = k8s::client().await;
+    let max_count = 5;  // Max wait incremented to 240 seconds (total time: 306 seconds)
     let mut count = 0;
     let mut count_increment = 2;
-    while !ensure(&vault).await {
+    while !ensure(&vault, &k8s_client).await {
         info!("Vault is not ready");
         if count >= max_count {
             error!("Vault is not ready after {} attempts", count);
