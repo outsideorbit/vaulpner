@@ -7,15 +7,26 @@ mod vault;
 use tracing::*;
 use vaultrs::client::Client;
 
+pub async fn initialize_vault(vault_client: &vaultrs::client::VaultClient) -> Result<String, Box<dyn std::error::Error>> {
+    match vault::initialize(vault_client).await {
+        Ok(key) => {
+            info!("Successfully initialized vault with key: {}", key);
+            Ok(key)
+        }
+        Err(e) => {
+            error!("Failed to initialize vault: {:?}", e);
+            Err(Box::new(e))
+        }
+    }
+}
 
-pub async fn ensure(vault: &vaultrs::client::VaultClient, k8s_client: &kube::Client) -> bool {
+
+pub async fn ensure(vault_client: &vaultrs::client::VaultClient, k8s_client: &kube::Client) -> bool {
     let mut result = false;
-    let status = vault.status().await;
+    let status = vault_client.status().await;
     match status {
         Ok(vaultrs::sys::ServerStatus::UNINITIALIZED) => {
-            info!("Vault is uninitialized");
-
-            
+            info!("Vault is uninitialized, initializing...");
         }
         Ok(status) => {
             info!("Vault status: {:?}", status);
@@ -34,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let vault = vault::client().await;
     info!("Vault settings: {:?}", vault.settings);
     let k8s_client = k8s::client().await;
-    let max_count = 5;  // Max wait incremented to 240 seconds (total time: 306 seconds)
+    let max_count = 5; // Max wait incremented to 240 seconds (total time: 306 seconds)
     let mut count = 0;
     let mut count_increment = 2;
     while !ensure(&vault, &k8s_client).await {

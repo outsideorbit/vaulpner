@@ -24,6 +24,9 @@ pub async fn initialize(vault: &VaultClient) -> Result<String, ClientError> {
     match start_initialization(vault).await {
         Ok(init_response) => {
             debug!("Vault initialized successfully: {:?}", init_response);
+            // NOTE: This will only work in the event that the initialization
+            // allows for a singular key for unlocking; if that changes, this 
+            // will need to be updated to reflect a more dynamic response
             Ok(init_response.keys[0].clone())
         }
         Err(e) => {

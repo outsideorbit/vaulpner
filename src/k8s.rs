@@ -1,6 +1,7 @@
-use kube::Api;
-use k8s_openapi::api::core::v1::Secret;
-use tracing::*;
+/*
+ */
+
+ use k8s_openapi::api::core::v1::Secret;
 
 pub async fn client() -> kube::Client {
     let config = kube::Config::infer().await.unwrap();
@@ -8,18 +9,29 @@ pub async fn client() -> kube::Client {
     client
 }
 
-pub async fn get_secret(client: &kube::Client, name: &str, namespace: &str) -> Result<Option<Secret>, kube::Error> {
-    let api: Api<Secret> = Api::namespaced(client.clone(), namespace);
-    // Try to get the secret, if it doesn't exist, return None
-    match api.get_opt(name).await {
-        Ok(secret) => Ok(secret),
-        Err(e) => {
-            error!("Error getting secret {}/{}: {:?}", namespace, name, e);
-            Err(e)
-        }
-    }
+pub async fn get_secret(client: &kube::Client, name: &str, namespace: &str) -> Result<Secret, kube::Error> {
+    let secrets: kube::Api<Secret> = kube::Api::namespaced(client.clone(), namespace);
+    secrets.get(name).await
 }
 
-// pub async fn update_secret(client: &kube::Client, name: &str, namespace: &str) -> Result<Option<Secret>, kube::Error> {
-//     Err(())
-// }
+pub async fn create_secret(client: &kube::Client, name: &str, namespace: &str, key: &str, value: &str) -> Result<Secret, kube::Error> {
+    use k8s_openapi::api::core::v1::Secret;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use std::collections::BTreeMap;
+
+    let mut data = BTreeMap::new();
+    data.insert(key.to_string(), base64::encode(value));
+
+    let secret = Secret {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            namespace: Some(namespace.to_string()),
+            ..ObjectMeta::default()
+        },
+        data: Some(data),
+        ..Secret::default()
+    };
+
+    let secrets: kube::Api<Secret> = kube::Api::namespaced(client.clone(), namespace);
+    secrets.create(&Default::default(), &secret).await
+}
