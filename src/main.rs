@@ -57,7 +57,7 @@ pub async fn ensure(vault_client: &vaultrs::client::VaultClient, k8s_client: &ku
             // Pull the secret
             match k8s::get_secret(k8s_client, "vault-root-token", &namespace).await {
                 Ok(secret) => {
-                    info!("Retrieved root token secret: {:?}", secret.data);
+                    debug!("Retrieved root token secret: {:?}", secret.data);
                     if let Some(data) = secret.data {
                         if let Some(root_token_bytes) = data.get("root") {
                             // Decode base64 bytes to get the actual root token

@@ -1,0 +1,167 @@
+name: Security Scan Container Image
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Container Image"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: 'Container image reference to scan'
+        required: true
+        type: string
+        default: 'ghcr.io/${{ github.repository_owner }}/vaulpner:latest'
+      fail_on_warnings:
+        description: 'Fail build on security warnings'
+        required: false
+        type: boolean
+        default: true
+      severity_threshold:
+        description: 'Minimum severity level to report'
+        required: false
+        type: string
+        default: 'UNKNOWN'
+        options:
+          - UNKNOWN
+          - LOW
+          - MEDIUM
+          - HIGH
+          - CRITICAL
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set image reference
+        id: image-ref
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "IMAGE_REF=${{ inputs.image_ref }}" >> $GITHUB_OUTPUT
+          else
+            # Extract image from workflow run
+            echo "IMAGE_REF=ghcr.io/${{ github.repository_owner }}/vaulpner:latest" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Run Trivy vulnerability scanner
+        id: trivy-scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.image-ref.outputs.IMAGE_REF }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: ${{ inputs.severity_threshold || 'UNKNOWN' }}
+          exit-code: '0'
+          ignore-unfixed: false
+          vuln-type: 'os,library'
+      
+      - name: Parse scan results
+        id: parse-results
+        run: |
+          # Extract vulnerability counts from Trivy output
+          if [ -f "trivy-results.sarif" ]; then
+            # Count vulnerabilities by severity
+            CRITICAL=$(grep -c '"level": "error"' trivy-results.sarif || echo "0")
+            HIGH=$(grep -c '"level": "error"' trivy-results.sarif || echo "0")
+            MEDIUM=$(grep -c '"level": "warning"' trivy-results.sarif || echo "0")
+            LOW=$(grep -c '"level": "note"' trivy-results.sarif || echo "0")
+            
+            echo "CRITICAL=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "HIGH=$HIGH" >> $GITHUB_OUTPUT
+            echo "MEDIUM=$MEDIUM" >> $GITHUB_OUTPUT
+            echo "LOW=$LOW" >> $GITHUB_OUTPUT
+            
+            TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
+            echo "TOTAL=$TOTAL" >> $GITHUB_OUTPUT
+            
+            echo "Vulnerability Summary:"
+            echo "  CRITICAL: $CRITICAL"
+            echo "  HIGH: $HIGH"
+            echo "  MEDIUM: $MEDIUM"
+            echo "  LOW: $LOW"
+            echo "  TOTAL: $TOTAL"
+          else
+            echo "CRITICAL=0" >> $GITHUB_OUTPUT
+            echo "HIGH=0" >> $GITHUB_OUTPUT
+            echo "MEDIUM=0" >> $GITHUB_OUTPUT
+            echo "LOW=0" >> $GITHUB_OUTPUT
+            echo "TOTAL=0" >> $GITHUB_OUTPUT
+            echo "No scan results found"
+          fi
+      
+      - name: Check security thresholds
+        if: ${{ inputs.fail_on_warnings != false }}
+        run: |
+          CRITICAL=${{ steps.parse-results.outputs.CRITICAL }}
+          HIGH=${{ steps.parse-results.outputs.HIGH }}
+          MEDIUM=${{ steps.parse-results.outputs.MEDIUM }}
+          LOW=${{ steps.parse-results.outputs.LOW }}
+          
+          echo "Security Scan Results:"
+          echo "  CRITICAL: $CRITICAL"
+          echo "  HIGH: $HIGH"
+          echo "  MEDIUM: $MEDIUM"
+          echo "  LOW: $LOW"
+          
+          # Fail if any CRITICAL or HIGH vulnerabilities found
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "❌ Security scan failed: CRITICAL or HIGH vulnerabilities detected"
+            echo "CRITICAL: $CRITICAL, HIGH: $HIGH"
+            exit 1
+          fi
+          
+          # Fail if any MEDIUM vulnerabilities found
+          if [ "$MEDIUM" -gt 0 ]; then
+            echo "❌ Security scan failed: MEDIUM vulnerabilities detected: $MEDIUM"
+            exit 1
+          fi
+          
+          # Fail if any LOW vulnerabilities found
+          if [ "$LOW" -gt 0 ]; then
+            echo "❌ Security scan failed: LOW vulnerabilities detected: $LOW"
+            exit 1
+          fi
+          
+          echo "✅ Security scan passed - no vulnerabilities found"
+      
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Generate security report
+        if: always()
+        run: |
+          echo "## Security Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ steps.image-ref.outputs.IMAGE_REF }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Severity Threshold:** ${{ inputs.severity_threshold || 'UNKNOWN' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **CRITICAL:** ${{ steps.parse-results.outputs.CRITICAL }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **HIGH:** ${{ steps.parse-results.outputs.HIGH }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **MEDIUM:** ${{ steps.parse-results.outputs.MEDIUM }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **LOW:** ${{ steps.parse-results.outputs.LOW }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **TOTAL:** ${{ steps.parse-results.outputs.TOTAL }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.parse-results.outputs.TOTAL }}" -gt 0 ]; then
+            echo "⚠️ **Security vulnerabilities detected!**" >> $GITHUB_STEP_SUMMARY
+            echo "Review the Trivy scan results above for details." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Recommendations" >> $GITHUB_STEP_SUMMARY
+            echo "1. Update base images to newer versions" >> $GITHUB_STEP_SUMMARY
+            echo "2. Update vulnerable dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "3. Review and apply security patches" >> $GITHUB_STEP_SUMMARY
+            echo "4. Consider using distroless or minimal base images" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No security vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Security Status" >> $GITHUB_STEP_SUMMARY
+            echo "Your container image passed all security checks!" >> $GITHUB_STEP_SUMMARY
+          fi
