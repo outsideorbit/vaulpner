@@ -6,11 +6,15 @@ use vaultrs::api::sys::requests::StartInitializationRequest;
 use vaultrs::{error::ClientError, api::sys::responses::StartInitializationResponse};
 use tracing::*;
 
-pub async fn client() -> VaultClient {
+pub async fn client() -> Result<VaultClient, Box<dyn std::error::Error>> {
     let settings: vaultrs::client::VaultClientSettings = VaultClientSettingsBuilder::default()
         .build()
-        .unwrap();
-    VaultClient::new(settings).unwrap()
+        .map_err(|e| format!("Failed to build Vault client settings: {:?}", e))?;
+    
+    let client = VaultClient::new(settings)
+        .map_err(|e| format!("Failed to create Vault client: {:?}", e))?;
+    
+    Ok(client)
 }
 
 
@@ -36,7 +40,8 @@ pub async fn initialize(vault: &VaultClient) -> Result<String, ClientError> {
     }
 }
 
-// pub async fn unseal(vault: &VaultClient) -> Result<(), ClientError>  {
-//     let resp = vaultrs::sys::unseal(vault, "1234567890").await;
-//     resp
-// }
+pub async fn unseal(vault: &VaultClient, key: &str) -> Result<(), ClientError>  {
+    let response = vaultrs::sys::unseal(vault, Some(key.to_string()), None, None).await?;
+    debug!("Vault unsealed successfully: {:?}", response);
+    Ok(())
+}
