@@ -2,6 +2,15 @@
 name = "vaulpner"
 version = "0.1.0"
 edition = "2021"
+description = "A Kubernetes sidecar utility that automatically initializes and unseals HashiCorp Vault in development environments"
+authors = ["Outside Orbit <contact@outsideorbit.com>"]
+license = "MIT"
+repository = "https://github.com/outsideorbit/vaulpner"
+homepage = "https://github.com/outsideorbit/vaulpner"
+documentation = "https://docs.rs/vaulpner"
+keywords = ["vault", "kubernetes", "sidecar", "devops", "secrets"]
+categories = ["development-tools", "web-programming::http-server"]
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
