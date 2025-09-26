@@ -1,6 +1,6 @@
 [package]
 name = "vaulpner"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 description = "A Kubernetes sidecar utility that automatically initializes and unseals HashiCorp Vault in development environments"
 authors = ["Outside Orbit <contact@outsideorbit.com>"]
