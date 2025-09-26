@@ -27,7 +27,7 @@ jobs:
       
       - name: Run Semantic Release
         id: semantic-release
-        uses: semantic-release/semantic-release@v22
+        uses: semantic-release/semantic-release@v24.2.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

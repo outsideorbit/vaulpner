@@ -268,4 +268,35 @@ GitHub Release Created
 **Repository State:** ✅ Ready for trunk-based development  
 **CI/CD Status:** ✅ Fully configured  
 **Security:** ✅ Integrated scanning  
-**Deployment:** ✅ Automated  
+**Deployment:** ✅ Automated
+
+## ⚠️ CRITICAL LESSON: Action Version Validation
+
+**ALWAYS validate GitHub Action versions exist before suggesting updates:**
+
+### Validation Process
+1. **Check actual repository tags**: 
+   ```bash
+   curl -s https://api.github.com/repos/OWNER/REPO/tags | jq -r '.[] | .name'
+   ```
+
+2. **Verify major version tags exist**: 
+   ```bash
+   curl -s https://api.github.com/repos/OWNER/REPO/tags | jq -r '.[] | .name' | grep -E '^v[0-9]+$'
+   ```
+
+3. **Check specific version exists**:
+   ```bash
+   curl -s https://api.github.com/repos/OWNER/REPO/tags | jq -r '.[] | .name' | grep -E '^v24\.2\.9$'
+   ```
+
+### Rules
+- **Never assume** a version exists based on search results
+- **Use specific versions** when uncertain: `@v24.2.9` instead of `@v24`
+- **Test before suggesting** - validate the exact tag exists
+- **Not all repos** maintain major version tags like `@v1`, `@v2`
+
+### Current Issue
+- **semantic-release/semantic-release@v22** - This major version tag does not exist
+- **semantic-release/semantic-release@v24.2.9** - This specific version needs validation
+- **Must verify** actual available versions before making changes  
