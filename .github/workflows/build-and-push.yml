@@ -25,29 +25,24 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Run Semantic Release
-        id: semantic-release
-        uses: semantic-release/semantic-release@v24.2.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Determine Semantic Version
+        id: version
+        uses: PaulHatch/semantic-version@v5.4.0
         with:
-          extra_plugins: |
-            @semantic-release/exec
-          config: |
-            {
-              "branches": ["main"],
-              "plugins": [
-                "@semantic-release/commit-analyzer",
-                "@semantic-release/release-notes-generator",
-                "@semantic-release/github",
-                [
-                  "@semantic-release/exec",
-                  {
-                    "prepareCmd": "sed -i 's/^version = \".*\"/version = \"${nextRelease.version}\"/' Cargo.toml && echo 'Updated Cargo.toml to version ${nextRelease.version}'"
-                  }
-                ]
-              ]
-            }
+          tag_prefix: "v"
+          major_pattern: "(BREAKING CHANGE|BREAKING|feat!|^feat.*!:)"
+          minor_pattern: "(^feat:)"
+          patch_pattern: "(^fix:|^chore:|^docs:|^style:|^refactor:|^perf:|^test:)"
+          version_format: "${major}.${minor}.${patch}"
+          search_commit_body: true
+          debug: false
+      
+      - name: Update Cargo.toml version
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+          echo "Updated Cargo.toml to version $VERSION"
+          cat Cargo.toml | grep '^version = '
       
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -90,7 +85,7 @@ jobs:
           file: Containerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.semantic-release.outputs.new-release-version }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.new_version }}
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -104,7 +99,7 @@ jobs:
           echo "## Container Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.semantic-release.outputs.new-release-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Build Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
@@ -112,7 +107,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "✅ **Image pushed to registry**" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags:** ${{ steps.semantic-release.outputs.new-release-version }}, latest" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** ${{ steps.version.outputs.new_version }}, latest" >> $GITHUB_STEP_SUMMARY
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build Details" >> $GITHUB_STEP_SUMMARY
