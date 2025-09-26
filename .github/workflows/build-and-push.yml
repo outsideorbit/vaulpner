@@ -40,14 +40,13 @@ jobs:
       
       - name: Debug version outputs
         run: |
-          echo "Version outputs:"
+          echo "=== Version Outputs Debug ==="
           echo "new_version: '${{ steps.version.outputs.new_version }}'"
           echo "version: '${{ steps.version.outputs.version }}'"
           echo "major: '${{ steps.version.outputs.major }}'"
           echo "minor: '${{ steps.version.outputs.minor }}'"
           echo "patch: '${{ steps.version.outputs.patch }}'"
-          echo "All outputs:"
-          echo "${{ toJson(steps.version.outputs) }}"
+          echo "============================="
       
       - name: Set version with fallback
         id: set-version
