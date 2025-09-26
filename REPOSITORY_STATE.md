@@ -291,6 +291,7 @@ Generate Build Summary
 - **Issue:** Broken semantic-release configuration not respecting commit messages
 - **Solution:** Replaced with `PaulHatch/semantic-version@v5.4.0`
 - **Patch Pattern Fix:** Added `patch_pattern` for `fix:`, `chore:`, `docs:`, etc.
+- **Cargo.toml Update Fix:** Added git commit/push to persist version changes
 - **Result:** ✅ Working semantic versioning with 95% commit adherence
 - **Impact:** Container images now properly tagged with semantic versions
 
