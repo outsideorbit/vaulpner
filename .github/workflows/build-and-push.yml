@@ -115,12 +115,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
       
-      - name: Run Rust checks
+      - name: Run Rust checks (parallel)
+        strategy:
+          matrix:
+            check: [check, clippy, fmt, test]
         run: |
-          cargo check --all-targets
-          cargo clippy --all-targets -- -D warnings
-          cargo fmt -- --check
-          cargo test --all-targets
+          case "${{ matrix.check }}" in
+            check)
+              cargo check --all-targets
+              ;;
+            clippy)
+              cargo clippy --all-targets -- -D warnings
+              ;;
+            fmt)
+              cargo fmt -- --check
+              ;;
+            test)
+              cargo test --all-targets
+              ;;
+          esac
       
       - name: Build and push container image
         uses: docker/build-push-action@v6
