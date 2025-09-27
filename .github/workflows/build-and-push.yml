@@ -106,9 +106,8 @@ jobs:
               max-parallelism = 4
       
       - name: Set up Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           components: rustfmt, clippy
       
       - name: Install dependencies
