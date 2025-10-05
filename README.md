@@ -1,10 +1,10 @@
 # vaulpner
 
-A Kubernetes sidecar utility that automatically initializes and unseals HashiCorp Vault in development environments. This tool simplifies Vault setup by handling the initialization process and securely storing the root token in Kubernetes secrets.
+A Kubernetes sidecar utility that automatically initializes and unseals HashiCorp Vault in development environments. This tool simplifies Vault setup by handling the initialization process with a single unseal key and securely storing the root token in Kubernetes secrets.
 
 ## 🚀 Features
 
-- **Automatic Vault Initialization**: Detects uninitialized Vault instances and initializes them
+- **Automatic Vault Initialization**: Detects uninitialized Vault instances and initializes them with a single unseal key
 - **Automatic Vault Unsealing**: Retrieves and uses stored root tokens to unseal Vault
 - **Secure Token Storage**: Stores root tokens in Kubernetes secrets for persistence
 - **Kubernetes Native**: Designed to run as a sidecar container in Kubernetes deployments
@@ -156,6 +156,30 @@ roleRef:
 
 ## ⚙️ Configuration
 
+### Important: Single Unseal Key Limitation
+
+**vaulpner only supports Vault configurations with a single unseal key.** This is intentional for development environments where simplicity is prioritized over high availability.
+
+### Vault Configuration Options
+
+#### Option 1: Single Key (Recommended for Development)
+Configure Vault with a single unseal key for development environments:
+
+```bash
+# Initialize Vault with 1 key threshold and 1 key share
+vault operator init -key-shares=1 -key-threshold=1
+```
+
+#### Option 2: Dev Mode (No Unsealing Required)
+For pure development/testing, use Vault's dev mode which doesn't require unsealing:
+
+```bash
+# Start Vault in dev mode (no unsealing needed)
+vault server -dev -dev-root-token-id="root"
+```
+
+**Note:** vaulpner is not needed when using dev mode as Vault starts unsealed.
+
 ### Environment Variables
 
 | Variable | Description | Default | Required |
@@ -217,14 +241,27 @@ spec:
 ## 🔍 How It Works
 
 1. **Status Check**: vaulpner checks if Vault is initialized and unsealed
-2. **Initialization**: If uninitialized, it initializes Vault with a single unseal key
+2. **Initialization**: If uninitialized, it initializes Vault with a single unseal key (key-shares=1, key-threshold=1)
 3. **Token Storage**: Stores the root token in a Kubernetes secret named `vault-root-token`
-4. **Unsealing**: If sealed, retrieves the root token from the secret and unseals Vault
+4. **Unsealing**: If sealed, retrieves the root token from the secret and unseals Vault using the single key
 5. **Retry Logic**: Implements exponential backoff with a maximum of 5 attempts
+
+**Important:** This approach uses a single unseal key for simplicity in development environments. For production use, consider using Vault's auto-unseal features or multiple unseal keys with proper key management.
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
+
+#### Multiple Unseal Keys Error
+If you see errors about multiple unseal keys, ensure Vault is configured with a single key:
+
+```bash
+# Check current Vault configuration
+vault status
+
+# Re-initialize with single key (WARNING: This will reset Vault)
+vault operator init -key-shares=1 -key-threshold=1
+```
 
 #### Vault Not Accessible
 ```bash

@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy source code
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
+COPY Cargo.toml Cargo.lock /build/
+COPY src /build/src/
 
 # Build for the target platform
 RUN cargo build --release
