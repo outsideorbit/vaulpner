@@ -162,11 +162,11 @@ jobs:
           file: Containerfile
           push: true
           target: release
-          tags:
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.version }}
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }}
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }}.${{ steps.set-version.outputs.minor }}
+          tags: >-
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest,
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.version }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }}.${{ steps.set-version.outputs.minor }}
           provenance: true
           sbom: true
 
@@ -177,9 +177,9 @@ jobs:
           file: Containerfile
           push: true
           target: debug
-          tags:
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug-${{ steps.set-version.outputs.version }}
+          tags: >-
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug,
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug-${{ steps.set-version.outputs.version }}
           provenance: true
           sbom: true
 
