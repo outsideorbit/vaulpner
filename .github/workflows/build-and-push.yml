@@ -14,9 +14,49 @@ env:
   IMAGE_NAME: vaulpner
 
 jobs:
+  rust-checks:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    strategy:
+      matrix:
+        check: [check, clippy, fmt, test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+      
+      - name: Run ${{ matrix.check }}
+        run: |
+          case "${{ matrix.check }}" in
+            check)
+              cargo check --all-targets
+              ;;
+            clippy)
+              cargo clippy --all-targets -- -D warnings
+              ;;
+            fmt)
+              cargo fmt -- --check
+              ;;
+            test)
+              cargo test --all-targets
+              ;;
+          esac
+
   build-and-push:
     runs-on: ubuntu-latest
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    needs: rust-checks
     permissions:
       contents: write
       packages: write
@@ -108,36 +148,6 @@ jobs:
           config-inline: |
             [worker.oci]
               max-parallelism = 4
-      
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-      
-      - name: Run Rust checks (parallel)
-        strategy:
-          matrix:
-            check: [check, clippy, fmt, test]
-        run: |
-          case "${{ matrix.check }}" in
-            check)
-              cargo check --all-targets
-              ;;
-            clippy)
-              cargo clippy --all-targets -- -D warnings
-              ;;
-            fmt)
-              cargo fmt -- --check
-              ;;
-            test)
-              cargo test --all-targets
-              ;;
-          esac
       
       - name: Build and push container image
         uses: docker/build-push-action@v6
