@@ -155,17 +155,31 @@ jobs:
             [worker.oci]
               max-parallelism = 4
 
-      - name: Build and push container image
+      - name: Build and push production image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Containerfile
           push: true
+          target: release
           tags: |
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.version }}
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }}
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }}.${{ steps.set-version.outputs.minor }}
+          provenance: true
+          sbom: true
+
+      - name: Build and push debug image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          push: true
+          target: debug
+          tags: |
+            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug
+            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug-${{ steps.set-version.outputs.version }}
           provenance: true
           sbom: true
 
@@ -182,9 +196,19 @@ jobs:
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          echo "✅ **Image pushed to registry**" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Images pushed to registry**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Production Image" >> $GITHUB_STEP_SUMMARY
           echo "**Tags:** ${{ steps.set-version.outputs.version }}, latest" >> $GITHUB_STEP_SUMMARY
-
+          echo "- **Base:** Distroless (minimal, secure)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Binary:** Release build (optimized)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Debug Image" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** debug, debug-${{ steps.set-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base:** Ubuntu 22.04" >> $GITHUB_STEP_SUMMARY
+          echo "- **Binary:** Debug build (with symbols)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tools:** gdb, valgrind, strace, etc." >> $GITHUB_STEP_SUMMARY
+          echo "- **Source:** Included for debugging" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build Details" >> $GITHUB_STEP_SUMMARY
           echo "- **Multi-platform:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
