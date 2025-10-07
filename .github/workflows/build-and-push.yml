@@ -76,19 +76,20 @@ jobs:
         uses: PaulHatch/semantic-version@v5.4.0
         with:
           tag_prefix: "v"
-          major_pattern: |
-            (BREAKING CHANGE|BREAKING|feat!|^feat.*!:)
-          minor_pattern: "(^feat:)"
-          patch_pattern: |
-            (^fix:|^chore:|^docs:|^style:|^refactor:|^perf:|^test:)
-          version_format: "${major}.${minor}.${patch}"
+          bump_each_commit: true
           search_commit_body: true
           debug: true
+          major_pattern: |
+            (BREAKING CHANGE|BREAKING|break:|major:)
+          minor_pattern: "(^feat:)"
+          bump_each_commit_patch_pattern: |
+            (^fix:|^chore:|^docs:|^style:|^refactor:|^perf:|^test:)
+          version_format: "${major}.${minor}.${patch}"
 
       - name: Debug version outputs
         run: |
           echo "=== Version Outputs Debug ==="
-          echo "new_version: '${{ steps.version.outputs.new_version }}'"
+          echo "version type: '${{ steps.version.outputs.version_type }}'"
           echo "version: '${{ steps.version.outputs.version }}'"
           echo "major: '${{ steps.version.outputs.major }}'"
           echo "minor: '${{ steps.version.outputs.minor }}'"
@@ -98,10 +99,7 @@ jobs:
       - name: Set version with fallback
         id: set-version
         run: |
-          VERSION="${{ steps.version.outputs.new_version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION="${{ steps.version.outputs.version }}"
-          fi
+          VERSION="${{ steps.version.outputs.version }}"
           if [ -z "$VERSION" ]; then
             # Fallback to current version from Cargo.toml
             VERSION=$(grep '^version = ' Cargo.toml | \
