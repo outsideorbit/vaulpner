@@ -162,7 +162,7 @@ jobs:
           file: Containerfile
           push: true
           target: release
-          tags: |
+          tags:
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.version }}
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }}
@@ -177,7 +177,7 @@ jobs:
           file: Containerfile
           push: true
           target: debug
-          tags: |
+          tags:
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug
             - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug-${{ steps.set-version.outputs.version }}
           provenance: true
