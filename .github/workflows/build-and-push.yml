@@ -96,22 +96,10 @@ jobs:
           echo "patch: '${{ steps.version.outputs.patch }}'"
           echo "============================="
 
-      - name: Set version with fallback
-        id: set-version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          if [ -z "$VERSION" ]; then
-            # Fallback to current version from Cargo.toml
-            VERSION=$(grep '^version = ' Cargo.toml | \
-              sed 's/version = "\(.*\)"/\1/')
-            echo "Using fallback version from Cargo.toml: $VERSION"
-          fi
-          echo "Final version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update Cargo.toml version
         run: |
-          VERSION="${{ steps.set-version.outputs.version }}"
+          VERSION="${{ steps.version.outputs.version }}"
           CURRENT_VERSION=$(grep '^version = ' Cargo.toml | \
             sed 's/version = "\(.*\)"/\1/')
           echo "Current version: $CURRENT_VERSION"
@@ -132,7 +120,7 @@ jobs:
           git config --local user.name "GitHub Action"
           git add Cargo.toml
           git commit -m \
-            "chore: bump version to ${{ steps.set-version.outputs.version }} [skip ci]"
+            "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
           git push
 
       - name: Log in to Container Registry
@@ -160,9 +148,9 @@ jobs:
           target: release
           tags: >-
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest,
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.version }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.major }}.${{ steps.set-version.outputs.minor }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}
           provenance: true
           sbom: true
 
@@ -175,7 +163,7 @@ jobs:
           target: debug
           tags: >-
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug,
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug-${{ steps.set-version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug-${{ steps.version.outputs.version }}
           provenance: true
           sbom: true
 
@@ -185,7 +173,7 @@ jobs:
           echo "## Container Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Image:** ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.set-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Build Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
@@ -195,19 +183,9 @@ jobs:
           echo "✅ **Images pushed to registry**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Production Image" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags:** ${{ steps.set-version.outputs.version }}, latest" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** ${{ steps.version.outputs.version }}, latest" >> $GITHUB_STEP_SUMMARY
           echo "- **Base:** Distroless (minimal, secure)" >> $GITHUB_STEP_SUMMARY
           echo "- **Binary:** Release build (optimized)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Debug Image" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags:** debug, debug-${{ steps.set-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Base:** Ubuntu 22.04" >> $GITHUB_STEP_SUMMARY
-          echo "- **Binary:** Debug build (with symbols)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tools:** gdb, valgrind, strace, etc." >> $GITHUB_STEP_SUMMARY
-          echo "- **Source:** Included for debugging" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Build Details" >> $GITHUB_STEP_SUMMARY
-          echo "- **Multi-platform:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
-          echo "- **Provenance:** Enabled" >> $GITHUB_STEP_SUMMARY
-          echo "- **SBOM:** Generated" >> $GITHUB_STEP_SUMMARY
-          echo "- **Cache:** GitHub Actions cache enabled" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** debug, debug-${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
