@@ -120,15 +120,13 @@ jobs:
           if [ "$CURRENT_VERSION" != "$VERSION" ]; then
             sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
             echo "Updated Cargo.toml from $CURRENT_VERSION to $VERSION"
-            echo "VERSION_CHANGED=true" >> $GITHUB_ENV
           else
             echo "Version unchanged, no update needed"
-            echo "VERSION_CHANGED=false" >> $GITHUB_ENV
           fi
           cat Cargo.toml | grep '^version = '
 
       - name: Commit and push version update
-        if: ${{ env.VERSION_CHANGED == 'true' }}
+        if: ${{ steps.version.outputs.version_type != 'none' }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
