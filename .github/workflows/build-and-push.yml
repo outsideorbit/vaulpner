@@ -135,7 +135,7 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:v0.12.0
-          config-inline: |
+          buildkitd-config-inline: |
             [worker.oci]
               max-parallelism = 4
 
@@ -145,7 +145,6 @@ jobs:
           context: .
           file: Containerfile
           push: true
-          target: release
           tags: >-
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest,
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }},
