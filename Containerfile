@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy source code
 COPY Cargo.toml Cargo.lock /build/
-COPY src /build/
+COPY src /build/src
 
 # Build for the target platform
 RUN cargo build --release
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy source code
 COPY Cargo.toml Cargo.lock /build/
-COPY src /build/
+COPY src /build/src
 
 # Build debug version with symbols
 RUN cargo build --bin vaulpner
@@ -43,22 +43,16 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    cargo \
     curl \
-    wget \
     vim \
-    nano \
     htop \
     strace \
     gdb \
     lldb \
     valgrind \
     netcat-openbsd \
-    telnet \
     dnsutils \
-    iputils-ping \
-    tcpdump \
-    procps \
-    lsof \
     file \
     less \
     jq \
