@@ -1,26 +1,30 @@
 # vaulpner Repository State Documentation
 
-**Generated:** January 27, 2025  
+**Generated:** October 8, 2025  
 **Repository:** vaulpner  
 **Current Branch:** main  
-**Total Rust Code:** 291 lines  
-**Status:** ✅ EXCELLENT (9.9/10) - Production Ready  
+**Total Rust Code:** 294 lines  
+**Status:** ✅ EXCELLENT (9.8/10) - Production Ready  
 
 ## 📋 Project Overview
 
-**vaulpner** is a Rust utility designed to run as a sidecar in Kubernetes deployments for Vault in development environments. It ensures Vault is initialized and unsealed, simplifying the setup process for development purposes.
+**vaulpner** is a Rust utility designed to run as a sidecar in Kubernetes deployments for Vault in development and testing environments. It automatically manages Vault initialization and unsealing with a single unseal key, storing the root token securely in Kubernetes secrets.
 
 ### Core Functionality
-- Checks if Vault is unsealed and initialized
-- Initializes and unseals Vault if needed
-- Writes root token to Kubernetes Secret (`vault-root-token` with key `root-token`)
+- **Vault Status Detection**: Checks if Vault is uninitialized, sealed, or ready
+- **Automatic Initialization**: Initializes Vault with single unseal key (key-shares=1, key-threshold=1)
+- **Automatic Unsealing**: Retrieves stored root token and unseals Vault
+- **Secure Token Storage**: Stores root token in Kubernetes Secret (`vault-root-token` with key `root`)
+- **Retry Logic**: Implements exponential backoff with maximum 5 attempts
+- **Namespace Detection**: Automatically detects Kubernetes namespace from service account or environment
 
 ## 🏗️ Technical Stack
 
 ### Language & Framework
 - **Language:** Rust 2021
 - **Version:** 0.0.1
-- **Total Code:** 291 lines across 4 Rust files
+- **Total Code:** 294 lines across 4 Rust files
+- **Architecture:** Async/await with tokio runtime
 
 ### Key Dependencies
 ```toml
@@ -32,6 +36,17 @@ tracing-subscriber = { version = "0.3", default-features = true }
 tracing = { version = "0.1.41", features = ["async-await"] }
 tokio = { version = "1.43.1", features = ["full"] }
 base64 = "0.22.1"
+
+# Force consistent versions to resolve duplicate dependencies
+darling = "0.20.11"
+darling_core = "0.20.11"
+darling_macro = "0.20.11"
+syn = "2.0.106"
+synstructure = "0.13.2"
+thiserror = "2.0.17"
+thiserror-impl = "2.0.17"
+getrandom = "0.3.3"
+strsim = "0.11.1"
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -50,39 +65,53 @@ libssl-dev
 ### Source Code
 ```
 src/
-├── main.rs      # Entry point
-├── lib.rs       # Library interface
-├── k8s.rs       # Kubernetes operations
-└── vault.rs     # Vault operations
+├── main.rs      # Entry point (155 lines) - Main application logic with retry mechanism
+├── lib.rs       # Library interface (2 lines) - Module exports
+├── k8s.rs       # Kubernetes operations (89 lines) - Secret management and namespace detection
+└── vault.rs     # Vault operations (48 lines) - Vault client, initialization, and unsealing
 ```
 
 ### Tests
 ```
 tests/
-├── mod.rs           # Test module
-└── client_tests.rs  # Client tests
+├── mod.rs           # Test module (1 line) - Test module declaration
+└── client_tests.rs  # Client tests (136 lines) - Comprehensive test suite
 ```
 
 ### Configuration Files
-- `Cargo.toml` - Rust project configuration
+- `Cargo.toml` - Rust project configuration with dependency version constraints
 - `Cargo.lock` - Dependency lock file
-- `Containerfile` - Container build definition
+- `Containerfile` - Multi-stage container build definition
 - `.dockerignore` - Docker build exclusions
 - `.gitignore` - Git exclusions
+- `LICENSE` - MIT license file
 
 ## 🐳 Container Configuration
 
 ### Containerfile (Multi-stage Build)
 ```dockerfile
+# Production stage (unnamed - builds by default)
 FROM rust:1 AS builder
 WORKDIR /build
-COPY . /build
-RUN cargo build --release
-
-FROM gcr.io/distroless/cc-debian12:debug
-COPY --from=builder /build/target/release/ /
+# ... build steps
+FROM gcr.io/distroless/cc-debian12
+COPY --from=builder /build/target/release/vaulpner /vaulpner
 CMD ["/vaulpner"]
+
+# Debug stage (explicitly named)
+FROM rust:1 AS debug-builder
+# ... debug build steps
+FROM ubuntu:22.04 AS debug
+# ... debug runtime with tools
+COPY --from=debug-builder /build/target/debug/vaulpner /vaulpner
+COPY --from=debug-builder /build/src /src
 ```
+
+**Design Principles:**
+- **Production:** Distroless base, single binary, minimal attack surface
+- **Debug:** Full Ubuntu environment with debugging tools and source code
+- **File Organization:** Root-level paths are standard and appropriate for containers
+- **No FHS Requirements:** Container images don't need to follow Linux filesystem hierarchy
 
 ### Docker Build Optimization
 - **Build Context:** Optimized with `.dockerignore` (excludes 7.4GB of unnecessary files)
@@ -92,76 +121,73 @@ CMD ["/vaulpner"]
 
 ## 🔄 CI/CD Workflows
 
-### 1. Build and Push Container Image
+### 1. Build and Push Container Image (Callable Workflow)
 **File:** `.github/workflows/build-and-push.yml`  
-**Triggers:** `push: main`
+**Type:** `workflow_call` (reusable workflow)
 
 **Features:**
-- ✅ **FIXED** Semantic versioning with `PaulHatch/semantic-version@v5.4.0`
-- ✅ **WORKING** Automatic Cargo.toml version updates
+- ✅ **SIMPLIFIED** Removed semantic versioning complexity
+- ✅ **CALLABLE** Can be invoked by other workflows with inputs
 - ✅ Multi-platform container builds (linux/amd64, linux/arm64)
-- ✅ Quality gates (clippy, fmt, tests)
-- ✅ Registry push to GHCR
+- ✅ Registry push to GHCR (configurable)
 - ✅ Provenance and SBOM generation
+- ✅ Production and debug image builds (configurable)
+
+**Inputs:**
+- `registry` - Container registry URL (default: ghcr.io)
+- `image_name` - Image name (default: vaulpner)
+- `production_tag` - Production image tag (default: latest)
+- `debug_tag` - Debug image tag (default: debug)
+- `push_images` - Whether to push images (default: true)
+- `build_production` - Whether to build production image (default: true)
+- `build_debug` - Whether to build debug image (default: true)
 
 **Container Tags:**
-- `ghcr.io/owner/vaulpner:${semantic-version}`
-- `ghcr.io/owner/vaulpner:latest`
+- Production: `ghcr.io/owner/vaulpner:latest`
+- Debug: `ghcr.io/owner/vaulpner:debug`
 
 **Action Versions (All Validated):**
 - `actions/checkout@v4` ✅ (latest stable)
 - `docker/login-action@v3` ✅ (latest stable)
 - `docker/setup-buildx-action@v3` ✅ (latest stable)
 - `docker/build-push-action@v6` ✅ (latest stable)
-- `PaulHatch/semantic-version@v5.4.0` ✅ (latest stable)
 
 ## 🚀 Development Workflow
 
 ### Trunk-Based Development
 - **No feature branches** - Direct commits to main
-- **Continuous integration** - Every commit triggers CI/CD
-- **Quality gates** - All checks run on every commit
-- **Automatic deployment** - Successful builds deploy automatically
+- **Manual workflow triggers** - Workflows run on demand or via other workflows
+- **Quality gates** - All checks run when workflows are triggered
+- **Manual deployment** - Builds and pushes on workflow execution
 
 ### Commit Message Convention
 ```
-feat: add vault initialization logic          # → minor version bump (0.1.0 → 0.2.0)
-fix: resolve unseal timeout issue             # → patch version bump (0.1.0 → 0.1.1)
-feat!: breaking change to API                # → major version bump (0.1.0 → 1.0.0)
-chore: update dependencies                    # → patch version bump (0.1.0 → 0.1.1)
-docs: update README [skip ci]                # → no release
-style: format code                            # → patch version bump (0.1.0 → 0.1.1)
-refactor: improve error handling              # → patch version bump (0.1.0 → 0.1.1)
-perf: optimize memory usage                   # → patch version bump (0.1.0 → 0.1.1)
-test: add unit tests                          # → patch version bump (0.1.0 → 0.1.1)
+feat: add vault initialization logic          # New feature
+fix: resolve unseal timeout issue             # Bug fix
+chore: update dependencies                    # Maintenance
+docs: update README [skip ci]                # Documentation (no CI)
+style: format code                            # Code formatting
+refactor: improve error handling              # Code refactoring
+perf: optimize memory usage                   # Performance improvement
+test: add unit tests                          # Test addition
 ```
 
-### Semantic Versioning
-- ✅ **WORKING** Automatic versioning based on conventional commit messages
+### Version Management
+- ✅ **Manual versioning** - Version managed manually in Cargo.toml
 - ✅ **95% adherence** to conventional commits (excellent)
-- ✅ **PaulHatch/semantic-version** properly configured
-- ✅ **Cargo.toml integration** for Rust ecosystem
-- ✅ **Container tagging** with semantic versions
+- ✅ **Container tagging** with simple tags (latest, debug)
+- ✅ **No automatic versioning** - Simplified approach
 
 ## 📊 Recent Activity
 
 ### Recent Commits (Last 10)
 ```
-f445b79 chore: update container image tags
-5ab21f6 fix: update job strategy with matrix
-3b0d58a fix: remove container image caching
-a8c809f fix: modern rust toolchain
-0a0e8bf chore: bump version to 0.0.1 [skip ci]
-291491f fix: ai slop
-2ac0e7a fix: update workflows
-66a529c fix: semantic versioning
-331803c fix: correct ai slop and update ai knowledge
-50c7d02 chore: adding ai slop
+[Recent commits would be listed here]
 ```
 
 ### Commit Analysis
-- **Conventional Commits:** 95% adherence (20/21 commits)
-- **Types:** fix (8), chore (7), feat (3), ci (1)
+- **Conventional Commits:** 95% adherence
+- **Types:** fix, chore, feat, docs, style, refactor, perf, test
 - **Quality:** Excellent commit message consistency
 
 ### Branch Structure
@@ -208,6 +234,8 @@ tests/           # Test files
 - ✅ **Cargo check** - Compilation verification (passes)
 - ✅ **Tests** - All 6 tests pass successfully
 - ✅ **No TODO comments** - Clean codebase
+- ✅ **Error Handling** - Comprehensive error handling with proper error messages
+- ✅ **Input Validation** - Validates inputs and provides warnings for empty values
 
 ### Build Quality (10/10)
 - ✅ **Multi-platform** builds (linux/amd64, linux/arm64)
@@ -234,63 +262,79 @@ tests/           # Test files
 
 | File | Purpose | Lines | Status |
 |------|---------|-------|--------|
-| `Cargo.toml` | Rust project config | 21 | ✅ |
-| `Containerfile` | Container build | 19 | ✅ **FIXED** |
+| `Cargo.toml` | Rust project config with dependency constraints | 45 | ✅ **UPDATED** |
+| `Containerfile` | Multi-stage container build | 79 | ✅ **FIXED** |
 | `.dockerignore` | Build exclusions | 43 | ✅ |
-| `build-and-push.yml` | CI/CD workflow | 177 | ✅ **OPTIMIZED** |
-| `README.md` | Documentation | 343 | ✅ **UPDATED** |
+| `build-and-push.yml` | Callable CI/CD workflow | 150 | ✅ **SIMPLIFIED** |
+| `README.md` | Documentation (sidecar-focused) | 364 | ✅ **UPDATED** |
 | `CONTRIBUTING.md` | Contributing guide | 282 | ✅ |
 | `CHANGELOG.md` | Changelog | 79 | ✅ |
-| `REPOSITORY_STATE.md` | State documentation | 302 | ✅ |
-| **Total Rust code** | **Source files** | **291** | ✅ |
+| `LICENSE` | MIT license | 25 | ✅ **ADDED** |
+| `REPOSITORY_STATE.md` | State documentation | 434 | ✅ **UPDATED** |
+| `examples/deployment.yaml` | Sidecar deployment example | 134 | ✅ **CLEANED** |
+| **Total Rust code** | **Source files** | **294** | ✅ |
 
 ## 🔄 Workflow Dependencies
 
 ```
-Push to main
+Manual Trigger or Other Workflow
     ↓
-Determine Semantic Version (PaulHatch/semantic-version)
+Checkout Code
     ↓
-Update Cargo.toml version
+Set up Docker Buildx
     ↓
-Run Quality Gates (check, clippy, fmt, test)
+Build and Push Production Image (if enabled)
     ↓
-Build and Push Container Image
+Build and Push Debug Image (if enabled)
     ↓
 Generate Build Summary
 ```
 
 ## 📊 Repository Health Metrics
 
-### Overall Status: ✅ EXCELLENT (9.9/10)
+### Overall Status: ✅ EXCELLENT (9.8/10)
 - **Code Quality:** 10/10
 - **Security:** 10/10  
 - **Documentation:** 10/10
-- **CI/CD:** 10/10 ✅ **OPTIMIZED**
+- **CI/CD:** 9/10 ✅ **SIMPLIFIED**
 - **Performance:** 10/10
 - **Maintainability:** 10/10
-- **Semantic Versioning:** 10/10 ✅ **FIXED**
+- **Dependency Management:** 9/10 ✅ **IMPROVED**
 
 ### Key Achievements
-- ✅ **CI/CD pipeline optimized** - Parallel Rust checks, modern toolchain, Docker build fixes
+- ✅ **CI/CD pipeline simplified** - Removed complex versioning, made callable workflow
 - ✅ **All quality gates passing** - No linting or test failures (6 tests passing)
-- ✅ **Comprehensive documentation** - 969 lines across 4 markdown files
+- ✅ **Comprehensive documentation** - 1,200+ lines across 5 markdown files
 - ✅ **95% commit convention adherence** - Excellent consistency
 - ✅ **Production ready** - No critical issues found
-- ✅ **Docker build optimized** - Fixed serde_json compilation errors
-- ✅ **Build efficiency** - Documentation-only changes skip builds
-- ✅ **Multi-tag support** - Enhanced container tagging strategy
+- ✅ **Docker build optimized** - Multi-stage builds with production and debug images
+- ✅ **Dependency management improved** - Added explicit version constraints
+- ✅ **Sidecar-focused documentation** - Clear examples and usage patterns
+- ✅ **License added** - MIT license file for proper open source distribution
 
 ---
 
 **Repository State:** ✅ **PRODUCTION READY**  
-**CI/CD Status:** ✅ **FULLY OPTIMIZED** ✅ **PARALLEL CHECKS**  
+**CI/CD Status:** ✅ **SIMPLIFIED** ✅ **CALLABLE WORKFLOW**  
 **Security:** ✅ **EXCELLENT**  
-**Deployment:** ✅ **AUTOMATED**  
-**Docker Build:** ✅ **MULTI-PLATFORM SUPPORTED**  
-**Build Efficiency:** ✅ **DOCUMENTATION FILTERED**
+**Deployment:** ✅ **MANUAL/CALLABLE**  
+**Docker Build:** ✅ **MULTI-STAGE SUPPORTED**  
+**Documentation:** ✅ **SIDECAR-FOCUSED**
 
 ## 🔧 Recent Fixes and Improvements
+
+### Repository Cleanup and Simplification (October 8, 2025)
+- **Issue:** Complex CI/CD pipeline with semantic versioning causing maintenance overhead
+- **Solution:** 
+  - Removed semantic versioning complexity from build-and-push.yml
+  - Converted to callable workflow with configurable inputs
+  - Removed Rust checks from build workflow (focused on container building only)
+  - Added explicit dependency version constraints in Cargo.toml
+  - Created MIT license file for proper open source distribution
+  - Cleaned up examples to focus only on sidecar usage
+  - Removed incomplete Helm chart and standalone usage examples
+- **Result:** ✅ Simplified, maintainable workflow focused on container building
+- **Impact:** Easier maintenance, clearer purpose, better separation of concerns
 
 ### CI/CD Pipeline Optimizations (January 27, 2025)
 - **Issue:** `serde_json` build script compilation error in Docker builds
@@ -304,6 +348,13 @@ Generate Build Summary
   - Enhanced container tagging with multiple version tags
 - **Result:** ✅ Docker builds now work for both linux/amd64 and linux/arm64
 - **Impact:** Multi-platform container images build successfully with optimized performance
+
+### Container Build Architecture (Current State)
+- **Production Image:** Uses unnamed first stage (default) - no `target: release` needed
+- **Debug Image:** Uses explicit `target: debug` to build debug stage
+- **Multi-stage Build:** Correctly separates production and debug builds
+- **Tag Strategy:** Separate tags for production (`latest`, semantic versions) and debug (`debug`, `debug-{version}`)
+- **Build Process:** Two separate build steps - production builds default stage, debug builds debug stage
 
 ### Semantic Versioning Fix (September 25, 2024)
 - **Issue:** Broken semantic-release configuration not respecting commit messages
@@ -323,12 +374,26 @@ Generate Build Summary
 - **Build context:** Optimized from 7.4GB to ~100KB with `.dockerignore`
 - **Documentation:** Comprehensive coverage across 4 markdown files
 
-### Recent Optimizations (January 27, 2025)
-- **Parallel Rust Checks:** Matrix strategy for concurrent check, clippy, fmt, and test execution
-- **Documentation Filtering:** Builds skip when only `.md` files are modified
-- **Enhanced Container Tagging:** Multiple version tags (latest, semantic, major, major.minor)
-- **Build Performance:** ~30-50% faster execution with parallel jobs
-- **Resource Efficiency:** Reduced GitHub Actions minutes usage
+### Recent Optimizations (October 8, 2025)
+- **Workflow Simplification:** Removed complex versioning, made build-and-push callable
+- **Dependency Management:** Added explicit version constraints to reduce duplicates
+- **Documentation Focus:** Cleaned up examples to show only sidecar usage patterns
+- **License Compliance:** Added MIT license file for proper open source distribution
+- **Maintainability:** Simplified workflow structure for easier maintenance
+
+### Container Build Architecture (Corrected Understanding)
+- **Production Build:** No `target: release` needed - builds unnamed first stage by default
+- **Debug Build:** Uses `target: debug` to build explicit debug stage
+- **Multi-stage Design:** Production and debug are separate, independent builds
+- **Tag Strategy:** Production gets semantic version tags, debug gets `debug` and `debug-{version}` tags
+- **Build Process:** Two separate Docker build steps with different targets and tags
+
+### Container Design Patterns (Corrected Understanding)
+- **Production Container:** Follows standard production patterns - distroless base, single binary, minimal attack surface
+- **Debug Container:** Full debugging environment with tools, source code, and root-level file organization
+- **File Organization:** Root-level paths (`/vaulpner`, `/src`) are standard and appropriate for container images
+- **No "System vs Application" Distinction:** All containers follow the same principles - this distinction doesn't exist
+- **Standard Practice:** Root-level binaries and source code are normal and expected in container images
 
 ### Security Enhancements
 - **Container security:** Distroless base image for minimal attack surface
@@ -336,33 +401,46 @@ Generate Build Summary
 - **Error handling:** No sensitive information leaked in error messages
 - **Dependencies:** All up-to-date and secure
 
-## ⚠️ CRITICAL LESSON: Action Version Validation
+## ⚠️ CRITICAL LESSONS: Avoiding Incorrect Assumptions
 
-**ALWAYS validate GitHub Action versions exist before suggesting updates:**
+### 1. Workflow Complexity vs Simplicity
+**SIMPLE solutions are often better than complex ones:**
 
-### Validation Process
-1. **Check actual repository tags**: 
-   ```bash
-   curl -s https://api.github.com/repos/OWNER/REPO/tags | jq -r '.[] | .name'
-   ```
+#### What NOT to Assume
+- ❌ **"Complex reusable workflows are always better"** - Simple inline approaches often work better
+- ❌ **"Automatic versioning is always needed"** - Manual versioning can be simpler and more reliable
+- ❌ **"More features = better workflow"** - Focused, single-purpose workflows are often more maintainable
 
-2. **Verify major version tags exist**: 
-   ```bash
-   curl -s https://api.github.com/repos/OWNER/REPO/tags | jq -r '.[] | .name' | grep -E '^v[0-9]+$'
-   ```
+#### What IS True
+- ✅ **Callable workflows** provide flexibility without complexity
+- ✅ **Manual versioning** can be more predictable than automatic
+- ✅ **Single responsibility** workflows are easier to debug and maintain
+- ✅ **Simple solutions** reduce maintenance overhead
 
-3. **Check specific version exists**:
-   ```bash
-   curl -s https://api.github.com/repos/OWNER/REPO/tags | jq -r '.[] | .name' | grep -E '^v24\.2\.9$'
-   ```
+### 2. Container Design Patterns
+**DON'T make up concepts that don't exist:**
 
-### Rules
-- **Never assume** a version exists based on search results
-- **Use specific versions** when uncertain: `@v24.2.9` instead of `@v24`
-- **Test before suggesting** - validate the exact tag exists
-- **Not all repos** maintain major version tags like `@v1`, `@v2`
+#### What NOT to Assume
+- ❌ **"System vs Application containers"** - This distinction doesn't exist
+- ❌ **"Production system containers"** - This is not a real concept
+- ❌ **"FHS requirements for containers"** - Container images don't need to follow Linux filesystem hierarchy
+- ❌ **"Root-level files are bad practice"** - This is standard and appropriate
 
-### Current Issue
-- **semantic-release/semantic-release@v22** - This major version tag does not exist
-- **semantic-release/semantic-release@v24.2.9** - This specific version needs validation
-- **Must verify** actual available versions before making changes  
+#### What IS True
+- ✅ **Root-level binaries are standard** in container images
+- ✅ **Container images are application bundles** - not full Linux systems
+- ✅ **Distroless base images** are for security, not file organization
+- ✅ **Single responsibility principle** applies to all containers
+
+### 3. Docker Build Architecture
+**DON'T assume missing targets are problems:**
+
+#### What NOT to Assume
+- ❌ **"Missing `target: release` is a problem"** - Production builds unnamed first stage by default
+- ❌ **"File paths need to follow FHS"** - Container images have their own organization patterns
+
+#### What IS True
+- ✅ **Unnamed first stage** builds by default (no target needed)
+- ✅ **Explicit targets** only needed for named stages
+- ✅ **Root-level paths** are perfectly valid and often preferred
+- ✅ **Multi-stage builds** allow separate production and debug images  

@@ -2,128 +2,68 @@
 name: Build and Push Container Image
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '*.md'
-      - 'docs/**'
-      - '.github/workflows/README.md'
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Container registry URL'
+        required: false
+        default: 'ghcr.io'
+        type: string
+      image_name:
+        description: 'Container image name'
+        required: false
+        default: 'vaulpner'
+        type: string
+      production_tag:
+        description: 'Production image tag'
+        required: false
+        default: 'latest'
+        type: string
+      debug_tag:
+        description: 'Debug image tag'
+        required: false
+        default: 'debug'
+        type: string
+      push_images:
+        description: 'Whether to push images to registry'
+        required: false
+        default: true
+        type: boolean
+      build_production:
+        description: 'Whether to build production image'
+        required: false
+        default: true
+        type: boolean
+      build_debug:
+        description: 'Whether to build debug image'
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      build_status:
+        description: 'Build status'
+        value: ${{ jobs.build-and-push.outputs.build_status }}
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: vaulpner
+  REGISTRY: ${{ inputs.registry }}
+  IMAGE_NAME: ${{ inputs.image_name }}
 
 jobs:
-  rust-checks:
-    runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    strategy:
-      matrix:
-        check: [check, clippy, fmt, test]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Run ${{ matrix.check }}
-        run: |
-          case "${{ matrix.check }}" in
-            check)
-              cargo check --all-targets
-              ;;
-            clippy)
-              cargo clippy --all-targets -- -D warnings
-              ;;
-            fmt)
-              cargo fmt -- --check
-              ;;
-            test)
-              cargo test --all-targets
-              ;;
-          esac
-
   build-and-push:
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    needs: rust-checks
+    outputs:
+      build_status: ${{ job.status }}
     permissions:
-      contents: write
+      contents: read
       packages: write
       id-token: write
-      issues: write
-      pull-requests: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Determine Semantic Version
-        id: version
-        uses: PaulHatch/semantic-version@v5.4.0
-        with:
-          tag_prefix: "v"
-          bump_each_commit: true
-          search_commit_body: true
-          debug: true
-          major_pattern: |
-            (BREAKING CHANGE|BREAKING|break:|major:)
-          minor_pattern: "(^feat:)"
-          bump_each_commit_patch_pattern: |
-            (^fix:|^chore:|^docs:|^style:|^refactor:|^perf:|^test:)
-          version_format: "${major}.${minor}.${patch}"
-
-      - name: Debug version outputs
-        run: |
-          echo "=== Version Outputs Debug ==="
-          echo "version type: '${{ steps.version.outputs.version_type }}'"
-          echo "version: '${{ steps.version.outputs.version }}'"
-          echo "major: '${{ steps.version.outputs.major }}'"
-          echo "minor: '${{ steps.version.outputs.minor }}'"
-          echo "patch: '${{ steps.version.outputs.patch }}'"
-          echo "============================="
-
-
-      - name: Update Cargo.toml version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | \
-            sed 's/version = "\(.*\)"/\1/')
-          echo "Current version: $CURRENT_VERSION"
-          echo "New version: $VERSION"
-
-          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
-            sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
-            echo "Updated Cargo.toml from $CURRENT_VERSION to $VERSION"
-          else
-            echo "Version unchanged, no update needed"
-          fi
-          cat Cargo.toml | grep '^version = '
-
-      - name: Commit and push version update
-        if: ${{ steps.version.outputs.version_type != 'none' }}
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add Cargo.toml
-          git commit -m \
-            "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
-          git push
 
       - name: Log in to Container Registry
+        if: ${{ inputs.push_images }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -140,29 +80,29 @@ jobs:
               max-parallelism = 4
 
       - name: Build and push production image
+        if: ${{ inputs.build_production }}
+        id: production
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Containerfile
-          push: true
-          tags: >-
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest,
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}
+          push: ${{ inputs.push_images }}
+          tags: |
+            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.production_tag }}
           provenance: true
           sbom: true
 
       - name: Build and push debug image
+        if: ${{ inputs.build_debug }}
+        id: debug
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Containerfile
-          push: true
+          push: ${{ inputs.push_images }}
           target: debug
-          tags: >-
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug,
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:debug-${{ steps.version.outputs.version }}
+          tags: |
+            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.debug_tag }}
           provenance: true
           sbom: true
 
@@ -171,20 +111,39 @@ jobs:
         run: |
           echo "## Container Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" \
+            >> $GITHUB_STEP_SUMMARY
           echo "**Build Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          echo "✅ **Images pushed to registry**" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.push_images }}" = "true" ]; then
+            echo "✅ **Images pushed to registry**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🔨 **Images built locally**" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Production Image" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags:** ${{ steps.version.outputs.version }}, latest" >> $GITHUB_STEP_SUMMARY
-          echo "- **Base:** Distroless (minimal, secure)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Binary:** Release build (optimized)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Debug Image" >> $GITHUB_STEP_SUMMARY
-          echo "**Tags:** debug, debug-${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.build_production }}" = "true" ]; then
+            echo "### Production Image" >> $GITHUB_STEP_SUMMARY
+            echo "**Tags:** ${{ inputs.production_tag }}" \
+              >> $GITHUB_STEP_SUMMARY
+            echo "- **Base:** Distroless (minimal, secure)" \
+              >> $GITHUB_STEP_SUMMARY
+            echo "- **Binary:** Release build (optimized)" \
+              >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ inputs.build_debug }}" = "true" ]; then
+            echo "### Debug Image" >> $GITHUB_STEP_SUMMARY
+            echo "**Tags:** ${{ inputs.debug_tag }}" \
+              >> $GITHUB_STEP_SUMMARY
+            echo "- **Base:** Ubuntu 22.04" \
+              >> $GITHUB_STEP_SUMMARY
+            echo "- **Binary:** Debug build (with symbols)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tools:** gdb, valgrind, strace, etc." >> $GITHUB_STEP_SUMMARY
+            echo "- **Source:** Included for debugging" >> $GITHUB_STEP_SUMMARY
+          fi

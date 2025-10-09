@@ -73,7 +73,7 @@ RUN chmod +x /vaulpner
 # Set environment variables for debugging
 ENV RUST_LOG=debug
 ENV RUST_BACKTRACE=1
-ENV RUST_SRC_PATH=/vaulpner
+ENV RUST_SRC_PATH=/src
 
 # Default command
 CMD ["/vaulpner"]

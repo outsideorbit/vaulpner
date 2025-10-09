@@ -48,36 +48,13 @@ cargo build --release
 ## 🚀 Quick Start
 
 ### 1. Deploy Vault
-First, deploy Vault to your Kubernetes cluster:
+Deploy Vault to your Kubernetes cluster. **Important:** Configure Vault to use a single unseal key by initializing it with:
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: vault
-  namespace: vault
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: vault
-  template:
-    metadata:
-      labels:
-        app: vault
-    spec:
-      containers:
-      - name: vault
-        image: hashicorp/vault:latest
-        ports:
-        - containerPort: 8200
-        env:
-        - name: VAULT_DEV_ROOT_TOKEN_ID
-          value: "dev-token"
-        - name: VAULT_DEV_LISTEN_ADDRESS
-          value: "0.0.0.0:8200"
-        command: ["vault", "server", "-dev"]
+```bash
+vault operator init -key-shares=1 -key-threshold=1
 ```
+
+This ensures vaulpner can properly manage the unsealing process.
 
 ### 2. Deploy vaulpner as Sidecar
 Add vaulpner as a sidecar container to your Vault deployment:
@@ -104,10 +81,7 @@ spec:
         image: hashicorp/vault:latest
         ports:
         - containerPort: 8200
-        env:
-        - name: VAULT_DEV_LISTEN_ADDRESS
-          value: "0.0.0.0:8200"
-        command: ["vault", "server", "-dev"]
+        # ... your Vault configuration
       - name: vaulpner
         image: ghcr.io/outsideorbit/vaulpner:latest
         env:
@@ -117,6 +91,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: RUST_LOG
+          value: "info"
 ```
 
 ### 3. Create Service Account
@@ -162,15 +138,27 @@ roleRef:
 
 ### Vault Configuration Options
 
-#### Option 1: Single Key (Recommended for Development)
-Configure Vault with a single unseal key for development environments:
+#### Option 1: Single Key (Recommended for Development/Testing)
+Configure Vault with a single unseal key for development and testing environments:
 
 ```bash
 # Initialize Vault with 1 key threshold and 1 key share
 vault operator init -key-shares=1 -key-threshold=1
 ```
 
-#### Option 2: Dev Mode (No Unsealing Required)
+**Note:** This approach prioritizes simplicity over high availability and is suitable for development, testing, and single-node deployments.
+
+#### Option 2: Production with Auto-Unseal (Recommended for Production)
+For production environments, use Vault's auto-unseal features instead of vaulpner:
+
+```bash
+# Configure auto-unseal with cloud KMS
+vault operator init -key-shares=5 -key-threshold=3
+```
+
+**Note:** vaulpner is not needed when using auto-unseal as Vault handles unsealing automatically.
+
+#### Option 3: Dev Mode (Development Only)
 For pure development/testing, use Vault's dev mode which doesn't require unsealing:
 
 ```bash
@@ -206,37 +194,42 @@ data:
 
 ## 🔧 Usage
 
-### Basic Usage
-```bash
-# Run with default settings
-vaulpner
-
-# Run with custom Vault address
-VAULT_ADDR=http://vault.example.com:8200 vaulpner
-
-# Run with debug logging
-RUST_LOG=debug vaulpner
-```
-
-### Kubernetes Deployment
+### Kubernetes Sidecar Deployment
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: my-app
+  namespace: my-app
 spec:
   template:
     spec:
+      serviceAccountName: my-app-service-account
       containers:
       - name: my-app
         image: my-app:latest
+        env:
+        - name: VAULT_ADDR
+          value: "http://vault.vault.svc.cluster.local:8200"
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: vault-root-token
+              key: root
         # ... your app configuration
       - name: vaulpner
         image: ghcr.io/outsideorbit/vaulpner:latest
         env:
         - name: VAULT_ADDR
-          value: "http://vault:8200"
+          value: "http://vault.vault.svc.cluster.local:8200"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: RUST_LOG
+          value: "info"
 ```
+
 
 ## 🔍 How It Works
 
@@ -246,7 +239,18 @@ spec:
 4. **Unsealing**: If sealed, retrieves the root token from the secret and unseals Vault using the single key
 5. **Retry Logic**: Implements exponential backoff with a maximum of 5 attempts
 
-**Important:** This approach uses a single unseal key for simplicity in development environments. For production use, consider using Vault's auto-unseal features or multiple unseal keys with proper key management.
+**Important:** This approach uses a single unseal key for simplicity in development and testing environments. For production use, consider using Vault's auto-unseal features or multiple unseal keys with proper key management.
+
+### Production Considerations
+
+When using vaulpner in production-like environments:
+
+- **Single Point of Failure**: The unseal key is stored in a Kubernetes secret, which could be a security risk
+- **Key Management**: Consider using external key management systems for production
+- **High Availability**: Single unseal key limits high availability options
+- **Security**: Root tokens should be rotated regularly and stored securely
+
+**Recommendation**: For production environments, use Vault's built-in auto-unseal features with cloud KMS or hardware security modules (HSMs) instead of vaulpner.
 
 ## 🐛 Troubleshooting
 
@@ -313,11 +317,27 @@ kubectl logs -n vault deployment/vault-with-vaulpner -c vaulpner -f
 
 ## 🔒 Security Considerations
 
-- **Development Only**: This tool is designed for development environments
+### Development/Testing Environments
 - **Root Token Storage**: Root tokens are stored in Kubernetes secrets (base64 encoded)
 - **Network Security**: Ensure Vault is not exposed to untrusted networks
 - **RBAC**: Use least-privilege principles for service account permissions
-- **Token Rotation**: Consider implementing token rotation for production use
+- **Single Unseal Key**: Simpler but less secure than multiple keys
+
+### Production Considerations
+- **Not Recommended**: vaulpner is not recommended for production environments
+- **Use Auto-Unseal**: Implement Vault's auto-unseal with cloud KMS or HSMs
+- **Key Management**: Use external key management systems for unseal keys
+- **Token Rotation**: Implement regular token rotation and revocation
+- **High Availability**: Use multiple Vault nodes with proper clustering
+- **Network Security**: Use TLS encryption and proper network segmentation
+- **Audit Logging**: Enable comprehensive audit logging
+- **Backup Strategy**: Implement proper backup and disaster recovery procedures
+
+### General Security Best Practices
+- **Least Privilege**: Grant minimal required permissions
+- **Regular Updates**: Keep Vault and vaulpner updated
+- **Monitoring**: Implement comprehensive monitoring and alerting
+- **Access Control**: Use proper authentication and authorization mechanisms
 
 ## 🤝 Contributing
 
