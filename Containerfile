@@ -33,7 +33,8 @@ COPY Cargo.toml Cargo.lock /build/
 COPY src /build/src
 
 # Build debug version with symbols
-RUN cargo build --bin vaulpner
+RUN rustup target add x86_64-unknown-linux-gnu \
+    && cargo build --bin vaulpner
 
 # Debug runtime stage
 FROM ubuntu:22.04 AS debug
