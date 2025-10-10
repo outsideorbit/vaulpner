@@ -37,7 +37,7 @@ RUN rustup target add x86_64-unknown-linux-musl \
     && cargo build --bin vaulpner
 
 # Debug runtime stage
-FROM ubuntu:22.04 AS debug
+FROM rust:1 AS debug
 WORKDIR /build
 
 # Install system dependencies and debugging tools
