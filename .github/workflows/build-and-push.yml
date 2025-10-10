@@ -2,17 +2,7 @@
 name: Build and Push Container Image
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'src/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'Containerfile'
-      - '.dockerignore'
-      - 'LICENSE'
-  workflow_call:
+  workflow_dispatch:
     inputs:
       registry:
         description: 'Container registry URL'
@@ -49,10 +39,10 @@ on:
         required: false
         default: true
         type: boolean
-    outputs:
-      build_status:
-        description: 'Build status'
-        value: ${{ jobs.build-and-push.outputs.build_status }}
+    # outputs:
+    #   build_status:
+    #     description: 'Build status'
+    #     value: ${{ jobs.build-and-push.outputs.build_status }}
 
 env:
   REGISTRY: ${{ inputs.registry }}
