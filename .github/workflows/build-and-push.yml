@@ -87,8 +87,8 @@ jobs:
           context: .
           file: Containerfile
           push: ${{ inputs.push_images }}
-          tags: |
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.production_tag }}
+          tags: >-
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.production_tag }}
           provenance: true
           sbom: true
 
@@ -101,8 +101,8 @@ jobs:
           file: Containerfile
           push: ${{ inputs.push_images }}
           target: debug
-          tags: |
-            - ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.debug_tag }}
+          tags: >-
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.debug_tag }}
           provenance: true
           sbom: true
 
