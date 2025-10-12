@@ -38,7 +38,6 @@ RUN rustup target add x86_64-unknown-linux-musl \
 
 # Debug runtime stage
 FROM rust:1 AS debug
-WORKDIR /build
 
 # Install system dependencies and debugging tools
 RUN apt-get update && apt-get install -y \
