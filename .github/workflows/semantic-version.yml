@@ -1,0 +1,126 @@
+---
+name: Semantic Version
+
+on:
+  workflow_call:
+    outputs:
+      new_version:
+        description: 'New semantic version created'
+        value: ${{ jobs.semantic-version.outputs.new_version }}
+      has_release:
+        description: 'Whether a new release was created'
+        value: ${{ jobs.semantic-version.outputs.has_release }}
+      previous_version:
+        description: 'Previous version number'
+        value: ${{ jobs.semantic-version.outputs.previous_version }}
+      version_type:
+        description: 'Type of version bump (major|minor|patch)'
+        value: ${{ jobs.semantic-version.outputs.version_type }}
+  workflow_dispatch:
+
+jobs:
+  semantic-version:
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      has_release: ${{ steps.version.outputs.has_release }}
+      previous_version: ${{ steps.version.outputs.previous_version }}
+      version_type: ${{ steps.version.outputs.version_type }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release@latest
+
+      - name: Get current version
+        id: current
+        run: |
+          # Get current version from Cargo.toml
+          CURRENT_VERSION=$(grep 'version = ' Cargo.toml | cut -d'"' -f2)
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Run semantic-release (dry-run)
+        id: version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Run semantic-release in dry-run mode to get version info
+          npx semantic-release --dry-run > semantic-release-output.txt \
+            2>&1 || true
+
+          # Extract version information from the output
+          if grep -q "The next release version is" \
+            semantic-release-output.txt; then
+            NEW_VERSION=$(grep "The next release version is" \
+              semantic-release-output.txt | sed 's/.*version is //')
+            echo "has_release=true" >> $GITHUB_OUTPUT
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            PREV_VERSION="${{ steps.current.outputs.current_version }}"
+            echo "previous_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+
+            # Determine version type
+            CURRENT="${{ steps.current.outputs.current_version }}"
+            CURRENT_MAJOR=$(echo $CURRENT | cut -d. -f1)
+            CURRENT_MINOR=$(echo $CURRENT | cut -d. -f2)
+            CURRENT_PATCH=$(echo $CURRENT | cut -d. -f3)
+
+            NEW_MAJOR=$(echo $NEW_VERSION | cut -d. -f1)
+            NEW_MINOR=$(echo $NEW_VERSION | cut -d. -f2)
+            NEW_PATCH=$(echo $NEW_VERSION | cut -d. -f3)
+
+            if [ "$NEW_MAJOR" -gt "$CURRENT_MAJOR" ]; then
+              echo "version_type=major" >> $GITHUB_OUTPUT
+            elif [ "$NEW_MINOR" -gt "$CURRENT_MINOR" ]; then
+              echo "version_type=minor" >> $GITHUB_OUTPUT
+            elif [ "$NEW_PATCH" -gt "$CURRENT_PATCH" ]; then
+              echo "version_type=patch" >> $GITHUB_OUTPUT
+            else
+              echo "version_type=unknown" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "has_release=false" >> $GITHUB_OUTPUT
+            echo "new_version=${{ steps.current.outputs.current_version }}" \
+              >> $GITHUB_OUTPUT
+            PREV_VERSION="${{ steps.current.outputs.current_version }}"
+            echo "previous_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+            echo "version_type=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate summary (dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          echo "## Semantic Version Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          CURRENT="${{ steps.current.outputs.current_version }}"
+          NEW="${{ steps.version.outputs.new_version }}"
+          PREV="${{ steps.version.outputs.previous_version }}"
+          RELEASE="${{ steps.version.outputs.has_release }}"
+          TYPE="${{ steps.version.outputs.version_type }}"
+
+          echo "**Current Version:** $CURRENT" >> $GITHUB_STEP_SUMMARY
+          echo "**New Version:** $NEW" >> $GITHUB_STEP_SUMMARY
+          echo "**Previous Version:** $PREV" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Needed:** $RELEASE" >> $GITHUB_STEP_SUMMARY
+          echo "**Version Type:** $TYPE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$RELEASE" = "true" ]; then
+            echo "### 🚀 Release Information" >> $GITHUB_STEP_SUMMARY
+            echo "A new **$TYPE** version would be created:" \
+              >> $GITHUB_STEP_SUMMARY
+            echo "- **From:** $PREV" >> $GITHUB_STEP_SUMMARY
+            echo "- **To:** $NEW" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### 📋 No Release Needed" >> $GITHUB_STEP_SUMMARY
+            echo "No new release would be created based on current commits." \
+              >> $GITHUB_STEP_SUMMARY
+          fi
