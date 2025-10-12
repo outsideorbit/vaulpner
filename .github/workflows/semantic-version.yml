@@ -45,7 +45,7 @@ jobs:
         id: current
         run: |
           # Get current version from Cargo.toml
-          CURRENT_VERSION=$(grep 'version = ' Cargo.toml | cut -d'"' -f2)
+          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | cut -d'"' -f2)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
       - name: Run semantic-release (dry-run)
