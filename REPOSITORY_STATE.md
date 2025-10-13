@@ -403,7 +403,23 @@ Generate Build Summary
 
 ## ⚠️ CRITICAL LESSONS: Avoiding Incorrect Assumptions
 
-### 1. Workflow Complexity vs Simplicity
+### 1. Documentation-First Approach
+**ALWAYS reference actual documentation before suggesting any tool or approach:**
+
+#### What NOT to Assume
+- ❌ **"I can suggest tools based on web search summaries"** - Always read the actual documentation
+- ❌ **"Command-line interfaces work as I expect"** - Verify actual syntax and options
+- ❌ **"Outputs are what I think they are"** - Check the actual output format and behavior
+- ❌ **"Tools work the same across different projects"** - Each tool has specific usage patterns
+
+#### What IS True
+- ✅ **Always read official documentation** before suggesting any tool
+- ✅ **Verify command syntax and options** from authoritative sources
+- ✅ **Understand actual outputs and behavior** before implementing
+- ✅ **Research tool appropriateness** for the specific project context
+- ✅ **Test assumptions** rather than making them
+
+### 2. Workflow Complexity vs Simplicity
 **SIMPLE solutions are often better than complex ones:**
 
 #### What NOT to Assume
@@ -417,7 +433,7 @@ Generate Build Summary
 - ✅ **Single responsibility** workflows are easier to debug and maintain
 - ✅ **Simple solutions** reduce maintenance overhead
 
-### 2. Container Design Patterns
+### 3. Container Design Patterns
 **DON'T make up concepts that don't exist:**
 
 #### What NOT to Assume
@@ -432,7 +448,7 @@ Generate Build Summary
 - ✅ **Distroless base images** are for security, not file organization
 - ✅ **Single responsibility principle** applies to all containers
 
-### 3. Docker Build Architecture
+### 4. Docker Build Architecture
 **DON'T assume missing targets are problems:**
 
 #### What NOT to Assume

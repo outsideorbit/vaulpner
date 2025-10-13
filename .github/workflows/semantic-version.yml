@@ -21,24 +21,50 @@ on:
 jobs:
   semantic-version:
     runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+      has_release: ${{ steps.version.outputs.new_version != '' }}
+      previous_version: ${{ steps.version.outputs.previous_version }}
+      version_type: ${{ steps.version.outputs.version_type || 'unknown' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          fetch-depth: 0
 
-      - name: Install semantic-release
-        run: |
-          npm i @semantic-release/changelog \
-            @semantic-release/github \
-            semantic-release-export-data
-
-      - name: Run semantic-release (dry-run)
+      - name: Run python-semantic-release
         id: version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: python-semantic-release/python-semantic-release@v9.12.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          dry_run: true
+
+      - name: Generate summary (dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          # Run semantic-release in dry-run mode to get version info
-          npx semantic-release --dry-run
+          echo "## Semantic Version Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          CURRENT="${{ steps.version.outputs.previous_version }}"
+          NEW="${{ steps.version.outputs.new_version }}"
+          PREV="${{ steps.version.outputs.previous_version }}"
+          RELEASE="${{ steps.version.outputs.new_version != '' }}"
+          TYPE="unknown"
+
+          echo "**Current Version:** $CURRENT" >> $GITHUB_STEP_SUMMARY
+          echo "**New Version:** $NEW" >> $GITHUB_STEP_SUMMARY
+          echo "**Previous Version:** $PREV" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Needed:** $RELEASE" >> $GITHUB_STEP_SUMMARY
+          echo "**Version Type:** $TYPE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$RELEASE" = "true" ]; then
+            echo "### 🚀 Release Information" >> $GITHUB_STEP_SUMMARY
+            echo "A new **$TYPE** version would be created:" \
+              >> $GITHUB_STEP_SUMMARY
+            echo "- **From:** $PREV" >> $GITHUB_STEP_SUMMARY
+            echo "- **To:** $NEW" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### 📋 No Release Needed" >> $GITHUB_STEP_SUMMARY
+            echo "No new release would be created based on current commits." \
+              >> $GITHUB_STEP_SUMMARY
+          fi
