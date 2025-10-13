@@ -39,14 +39,15 @@ jobs:
 
       - name: Install semantic-release
         run: |
-          npm install -g semantic-release@latest
+          npm install @semantic-release/changelog \
+            @semantic-release/git \
+            semantic-release-export-data
 
       - name: Run semantic-release (dry-run)
         id: version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npx semantic-release --dry-run --ci >> $GITHUB_STEP_SUMMARY
           # Run semantic-release in dry-run mode to get version info
           npx semantic-release --dry-run > semantic-release-output.txt \
             2>&1 || true
