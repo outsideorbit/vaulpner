@@ -47,4 +47,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Run semantic-release in dry-run mode and capture output
-          semantic-release version --dry-run > semantic-output.txt 2>&1 >> $GITHUB_STEP_SUMMARY
+          semantic-release version --dry-run >> $GITHUB_STEP_SUMMARY
