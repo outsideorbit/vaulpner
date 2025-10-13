@@ -31,8 +31,8 @@ jobs:
 
       - name: Install semantic-release
         run: |
-          npm install @semantic-release/changelog \
-            @semantic-release/git \
+          npm i @semantic-release/changelog \
+            @semantic-release/github \
             semantic-release-export-data
 
       - name: Run semantic-release (dry-run)
