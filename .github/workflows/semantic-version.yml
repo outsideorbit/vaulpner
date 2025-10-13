@@ -46,7 +46,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npx semantic-release --dry-run --ci >> $GITHUB_SUMMARY
+          npx semantic-release --dry-run --ci >> $GITHUB_STEP_SUMMARY
           # Run semantic-release in dry-run mode to get version info
           npx semantic-release --dry-run > semantic-release-output.txt \
             2>&1 || true
