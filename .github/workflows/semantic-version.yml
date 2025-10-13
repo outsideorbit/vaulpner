@@ -21,21 +21,13 @@ on:
 jobs:
   semantic-version:
     runs-on: ubuntu-latest
-    outputs:
-      new_version: ${{ steps.version.outputs.new_version }}
-      has_release: ${{ steps.version.outputs.has_release }}
-      previous_version: ${{ steps.version.outputs.previous_version }}
-      version_type: ${{ steps.version.outputs.version_type }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 'lts/*'
 
       - name: Install semantic-release
         run: |
@@ -49,4 +41,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Run semantic-release in dry-run mode to get version info
-          npx semantic-release --dry-run >> $GITHUB_STEP_SUMMARY
+          npx semantic-release --dry-run
