@@ -411,6 +411,8 @@ Generate Build Summary
 - ❌ **"Command-line interfaces work as I expect"** - Verify actual syntax and options
 - ❌ **"Outputs are what I think they are"** - Check the actual output format and behavior
 - ❌ **"Tools work the same across different projects"** - Each tool has specific usage patterns
+- ❌ **"Input parameters exist based on error messages"** - Verify actual supported inputs
+- ❌ **"I can guess tool functionality"** - Must understand before suggesting
 
 #### What IS True
 - ✅ **Always read official documentation** before suggesting any tool
@@ -418,6 +420,42 @@ Generate Build Summary
 - ✅ **Understand actual outputs and behavior** before implementing
 - ✅ **Research tool appropriateness** for the specific project context
 - ✅ **Test assumptions** rather than making them
+- ✅ **Read actual source files** (like action.yml) to understand inputs/outputs
+- ✅ **Admit when I don't know** rather than making assumptions
+
+#### Critical Failure Pattern (October 8, 2025)
+**Repeated violations of documentation-first principle:**
+- Suggested `python-semantic-release` for Rust project without understanding it
+- Assumed `dry_run: true` input without checking action.yml
+- Assumed `additional_arguments` input without verification
+- Assumed `args: --dry-run` input without confirming it exists
+- Made 4+ incorrect assumptions in sequence about the same tool
+- **Result:** Wasted time with broken implementations and lost trust
+
+**Lesson:** One violation leads to more violations. Stop immediately when caught making assumptions.
+
+#### MANDATORY PROCESS FOR ANY NEW PACKAGE/TOOL
+**Before suggesting ANY new package, tool, or approach:**
+
+1. **READ THE ACTUAL DOCUMENTATION** - Not web search summaries, not assumptions
+2. **VERIFY INPUTS/OUTPUTS** - Check actual source files (action.yml, README, docs)
+3. **UNDERSTAND THE PURPOSE** - What is it designed for? Does it fit this project?
+4. **TEST THE ASSUMPTIONS** - Can I verify this works before suggesting?
+5. **ADMIT IF I DON'T KNOW** - Better to say "I need to research this" than guess
+
+**FORBIDDEN ACTIONS:**
+- ❌ Suggesting tools based on web search results alone
+- ❌ Assuming command-line interfaces work as expected
+- ❌ Guessing input parameters or outputs
+- ❌ Making multiple assumptions in sequence
+- ❌ Continuing after being corrected without stopping to verify
+
+**REQUIRED ACTIONS:**
+- ✅ Read official documentation first
+- ✅ Verify every input/output parameter
+- ✅ Understand the tool's actual purpose
+- ✅ Confirm it's appropriate for the project context
+- ✅ Stop and research when caught making assumptions
 
 ### 2. Workflow Complexity vs Simplicity
 **SIMPLE solutions are often better than complex ones:**

@@ -32,12 +32,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run python-semantic-release
-        id: version
-        uses: python-semantic-release/python-semantic-release@v9.12.0
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          additional_arguments: --dry-run
+          python-version: '3.11'
+
+      - name: Install python-semantic-release
+        run: |
+          pip install python-semantic-release
+
+      - name: Run semantic-release (dry-run)
+        id: version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Run semantic-release in dry-run mode and capture output
+          semantic-release version --dry-run > semantic-output.txt 2>&1 || true
+          
+          # Check if a new version would be created
+          if grep -q "The next release version is" semantic-output.txt; then
+            NEW_VERSION=$(grep "The next release version is" semantic-output.txt | sed 's/.*version is //')
+            echo "has_release=true" >> $GITHUB_OUTPUT
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "previous_version=unknown" >> $GITHUB_OUTPUT
+            echo "version_type=unknown" >> $GITHUB_OUTPUT
+          else
+            echo "has_release=false" >> $GITHUB_OUTPUT
+            echo "new_version=unknown" >> $GITHUB_OUTPUT
+            echo "previous_version=unknown" >> $GITHUB_OUTPUT
+            echo "version_type=none" >> $GITHUB_OUTPUT
+          fi
 
       - name: Generate summary (dispatch only)
         if: ${{ github.event_name == 'workflow_dispatch' }}
