@@ -29,3 +29,6 @@ jobs:
           semantic-release generate-config -f json \
             | jq '.semantic_release.allow_zero_version = true' \
           > semantic-release-config.json
+      - name: Run semantic-version
+        run: |
+          semantic-release -vvv --noop -c semantic-release-config.json version >> $GITHUB_STEP_SUMMARY
