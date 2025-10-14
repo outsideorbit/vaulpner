@@ -1,0 +1,26 @@
+---
+name: Main CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  semantic-version:
+    uses: ./.github/workflows/semantic-version.yml
+
+  build-and-push:
+    needs: semantic-version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/build-and-push.yml
+    with:
+      registry: 'ghcr.io'
+      image_name: 'vaulpner'
+      production_tag: 'latest'
+      debug_tag: 'debug'
+      push_images: true
+      build_production: true
+      build_debug: true
