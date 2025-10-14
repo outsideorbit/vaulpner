@@ -3,32 +3,55 @@ name: Semantic Version
 
 on:
   workflow_call:
+    outputs:
+      new_version:
+        description: 'New semantic version created'
+        value: ${{ jobs.semantic-version.outputs.version }}
+      has_release:
+        description: 'Whether a new release was created'
+        value: ${{ jobs.semantic-version.outputs.version != '' }}
+      previous_version:
+        description: 'Previous version number'
+        value: ${{ jobs.semantic-version.outputs.previous_version }}
+      version_type:
+        description: 'Type of version bump (major|minor|patch)'
+        value: ${{ jobs.semantic-version.outputs.version_type }}
   workflow_dispatch:
 
 jobs:
   semantic-version:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      has_release: ${{ steps.version.outputs.version != '' }}
+      previous_version: ${{ steps.version.outputs.previous_version }}
+      version_type: ${{ steps.version.outputs.version_type || 'unknown' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Get next version
+        id: version
+        uses: PaulHatch/semantic-version@v5
         with:
-          python-version: '3.11'
+          major_pattern: "/BREAKING CHANGE|BREAKING CHANGES|MAJOR/"
+          major_regexp_flags: "i"
+          minor_pattern: "/^feat|^feature|MINOR/"
+          minor_regexp_flags: "i"
+          patch_pattern: "/^fix|^perf|^refactor|^style|^test|^chore|^ci|^build|^docs|PATCH/"
+          patch_regexp_flags: "i"
+          search_commit_body: true
 
-      - name: Install and configure python-semantic-release
+      - name: Display version information
         run: |
-          # Install dependencies in parallel
-          (pip install python-semantic-release) &
-          (apt-get update && apt-get install -y jq) &
-          wait
-          # Generate configuration file and modify allow_zero_version inline
-          semantic-release generate-config -f json \
-            | jq '.semantic_release.allow_zero_version = true' \
-          > semantic-release-config.json
-      - name: Run semantic-version
-        run: |
-          semantic-release -vvv --noop -c semantic-release-config.json version >> $GITHUB_STEP_SUMMARY
+          echo "## Version Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous Version:** ${{ steps.version.outputs.previous_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Next Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version Type:** ${{ steps.version.outputs.version_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Major:** ${{ steps.version.outputs.major }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Minor:** ${{ steps.version.outputs.minor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Patch:** ${{ steps.version.outputs.patch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Increment:** ${{ steps.version.outputs.increment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Is Tagged:** ${{ steps.version.outputs.is_tagged }}" >> $GITHUB_STEP_SUMMARY
