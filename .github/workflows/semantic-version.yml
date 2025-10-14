@@ -4,9 +4,18 @@ name: Semantic Version
 on:
   workflow_call:
     outputs:
-      new_version:
+      version:
         description: 'New semantic version created'
         value: ${{ jobs.semantic-version.outputs.version }}
+      major:
+        description: 'Major version number'
+        value: ${{ jobs.semantic-version.outputs.major }}
+      minor:
+        description: 'Minor version number'
+        value: ${{ jobs.semantic-version.outputs.minor }}
+      patch:
+        description: 'Patch version number'
+        value: ${{ jobs.semantic-version.outputs.patch }}
       has_release:
         description: 'Whether a new release was created'
         value: ${{ jobs.semantic-version.outputs.version != '' }}
@@ -23,6 +32,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      major: ${{ steps.version.outputs.major }}
+      minor: ${{ steps.version.outputs.minor }}
+      patch: ${{ steps.version.outputs.patch }}
       has_release: ${{ steps.version.outputs.version != '' }}
       previous_version: ${{ steps.version.outputs.previous_version }}
       version_type: ${{ steps.version.outputs.version_type || 'unknown' }}
@@ -40,8 +52,8 @@ jobs:
           major_regexp_flags: "i"
           minor_pattern: "/^feat|^feature|MINOR/"
           minor_regexp_flags: "i"
-          patch_pattern: "/^fix|^perf|^refactor|^style|^test|^chore|^ci|^build|^docs|PATCH/"
-          patch_regexp_flags: "i"
+          bump_each_commit: true
+          bump_each_commit_patch_pattern: "/^fix|^perf|^refactor|^style|^test|^chore|^ci|^build|^docs|PATCH/"
           search_commit_body: true
 
       - name: Display version information
