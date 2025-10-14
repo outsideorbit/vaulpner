@@ -93,7 +93,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: |
-            image=moby/buildkit:v0.12.0
+            image=moby/buildkit:v0.12.0gi
           buildkitd-config-inline: |
             [worker.oci]
               max-parallelism = 4
@@ -109,10 +109,7 @@ jobs:
           target: debug
           tags: >-
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.debug_tag }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}-debug,
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }}.${{ inputs.patch }}${{ inputs.additional_tag }}-debug,
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }}-debug,
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}-debug
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}-debug
           provenance: true
           sbom: true
 
@@ -127,7 +124,6 @@ jobs:
           tags: >-
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.production_tag }},
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.version }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }}.${{ inputs.patch }}${{ inputs.additional_tag }},
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }},
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}
           provenance: true
