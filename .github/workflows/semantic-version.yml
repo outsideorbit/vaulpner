@@ -25,6 +25,12 @@ on:
       version_type:
         description: 'Type of version bump (major|minor|patch)'
         value: ${{ jobs.semantic-version.outputs.version_type }}
+      previous_commit:
+        description: 'Previous commit hash'
+        value: ${{ jobs.semantic-version.outputs.previous_commit }}
+      current_commit:
+        description: 'Current commit hash'
+        value: ${{ jobs.semantic-version.outputs.current_commit }}
   workflow_dispatch:
 
 jobs:
@@ -38,6 +44,8 @@ jobs:
       has_release: ${{ steps.version.outputs.version != '' }}
       previous_version: ${{ steps.version.outputs.previous_version }}
       version_type: ${{ steps.version.outputs.version_type || 'unknown' }}
+      previous_commit: ${{ steps.version.outputs.previous_commit }}
+      current_commit: ${{ steps.version.outputs.current_commit }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
