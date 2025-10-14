@@ -98,23 +98,6 @@ jobs:
             [worker.oci]
               max-parallelism = 4
 
-      - name: Build and push production image
-        if: ${{ inputs.build_production }}
-        id: production
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Containerfile
-          push: ${{ inputs.push_images }}
-          tags: >-
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.production_tag }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.version }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }}.${{ inputs.patch }}${{ inputs.additional_tag }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }},
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}
-          provenance: true
-          sbom: true
-
       - name: Build and push debug image
         if: ${{ inputs.build_debug }}
         id: debug
@@ -133,17 +116,49 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Build and push production image
+        if: ${{ inputs.build_production }}
+        id: production
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          push: ${{ inputs.push_images }}
+          tags: >-
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.production_tag }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.version }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }}.${{ inputs.patch }}${{ inputs.additional_tag }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}.${{ inputs.minor }},
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ inputs.major }}
+          provenance: true
+          sbom: true
+
       - name: Generate build summary
         if: always()
         run: |
           echo "## Container Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" \
-            >> $GITHUB_STEP_SUMMARY
-          echo "**Build Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Base Image:** ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Production Image Tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.production_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.major }}.${{ inputs.minor }}.${{ inputs.patch }}${{ inputs.additional_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.major }}.${{ inputs.minor }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.major }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Debug Image Tags:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.debug_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.version }}-debug\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.major }}.${{ inputs.minor }}.${{ inputs.patch }}${{ inputs.additional_tag }}-debug\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.major }}.${{ inputs.minor }}-debug\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ inputs.major }}-debug\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Information:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ inputs.push_images }}" = "true" ]; then
