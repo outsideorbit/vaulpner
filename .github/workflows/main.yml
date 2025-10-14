@@ -24,3 +24,8 @@ jobs:
       push_images: true
       build_production: true
       build_debug: true
+      major: ${{ needs.semantic-version.outputs.major }}
+      minor: ${{ needs.semantic-version.outputs.minor }}
+      patch: ${{ needs.semantic-version.outputs.patch }}
+      version: ${{ needs.semantic-version.outputs.version }}
+      additional_tag: ''
