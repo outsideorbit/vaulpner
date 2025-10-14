@@ -50,10 +50,10 @@ jobs:
         with:
           major_pattern: "/BREAKING CHANGE|BREAKING CHANGES|MAJOR/"
           major_regexp_flags: "i"
-          minor_pattern: "/^feat|^feature|MINOR/"
+          minor_pattern: "/^feat|^feature|^perf|MINOR/"
           minor_regexp_flags: "i"
           bump_each_commit: true
-          bump_each_commit_patch_pattern: "/^fix|^perf|^refactor|^style|^test|^chore|^ci|^build|^docs|PATCH/"
+          bump_each_commit_patch_pattern: "/^fix|^refactor|^chore|PATCH/"
           search_commit_body: true
 
       - name: Display version information
