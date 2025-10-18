@@ -217,17 +217,18 @@ spec:
               name: vault-root-token
               key: root
         # ... your app configuration
-      - name: vaulpner
-        image: ghcr.io/outsideorbit/vaulpner:latest
-        env:
-        - name: VAULT_ADDR
-          value: "http://vault.vault.svc.cluster.local:8200"
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: RUST_LOG
-          value: "info"
+    initContainers:
+    - name: vaulpner
+      image: ghcr.io/outsideorbit/vaulpner:latest
+      env:
+      - name: VAULT_ADDR
+        value: "http://vault.vault.svc.cluster.local:8200"
+      - name: POD_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RUST_LOG
+        value: "info"
 ```
 
 
