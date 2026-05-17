@@ -1,154 +1,50 @@
-/*
- */
+use std::process::ExitCode;
+use tracing::{error, info};
+use vaulpner::{ensure, k8s, vault, ReadyState};
 
-mod k8s;
-mod vault;
-
-use base64::Engine;
-use tracing::*;
-use vaultrs::client::Client;
-
-pub async fn initialize_vault(
-    vault_client: &vaultrs::client::VaultClient,
-) -> Result<String, Box<dyn std::error::Error>> {
-    match vault::initialize(vault_client).await {
-        Ok(key) => {
-            info!("Successfully initialized vault with key: {}", key);
-            Ok(key)
-        }
-        Err(e) => {
-            error!("Failed to initialize vault: {:?}", e);
-            Err(Box::new(e))
-        }
-    }
-}
-
-pub async fn get_current_namespace() -> String {
-    match k8s::namespace().await {
-        Ok(ns) => ns,
-        Err(e) => {
-            error!("Failed to get namespace: {:?}", e);
-            "default".to_string()
-        }
-    }
-}
-
-pub async fn ensure(
-    vault_client: &vaultrs::client::VaultClient,
-    k8s_client: &kube::Client,
-) -> bool {
-    let mut result = false;
-    let namespace = get_current_namespace().await;
-    let status = vault_client.status().await;
-    match status {
-        Ok(vaultrs::sys::ServerStatus::UNINITIALIZED) => {
-            info!("Vault is uninitialized, initializing...");
-            // Initialize Vault
-            match vault::initialize(vault_client).await {
-                Ok(root_token) => {
-                    info!("Vault initialized, storing root token in Kubernetes secret");
-                    match k8s::create_secret(k8s_client, "vault-root-token", &namespace, "root", &root_token).await {
-                        Ok(_) => info!("Root token stored in secret 'vault-root-token' (key: 'root') in namespace {}", namespace),
-                        Err(e) => error!("Failed to create secret: {:?}", e),
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to initialize Vault: {:?}", e);
-                }
-            }
-        }
-        Ok(vaultrs::sys::ServerStatus::SEALED) => {
-            info!("Vault is sealed");
-            // Pull the secret
-            match k8s::get_secret(k8s_client, "vault-root-token", &namespace).await {
-                Ok(secret) => {
-                    debug!("Retrieved root token secret: {:?}", secret.data);
-                    if let Some(data) = secret.data {
-                        if let Some(root_token_bytes) = data.get("root") {
-                            // Decode base64 bytes to get the actual root token
-                            let root_token = match base64::prelude::BASE64_STANDARD
-                                .decode(&root_token_bytes.0)
-                            {
-                                Ok(bytes) => {
-                                    match String::from_utf8(bytes) {
-                                        Ok(token) => {
-                                            // Validate token format (basic check)
-                                            if token.is_empty() || token.len() < 10 {
-                                                error!(
-                                                    "Invalid root token format: too short or empty"
-                                                );
-                                                return result;
-                                            }
-                                            token
-                                        }
-                                        Err(e) => {
-                                            error!(
-                                                "Failed to convert decoded bytes to UTF-8: {:?}",
-                                                e
-                                            );
-                                            return result;
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Failed to decode root token from base64: {:?}", e);
-                                    return result;
-                                }
-                            };
-                            debug!("Decoded root token: {}", root_token);
-                            // Unseal Vault
-                            match vault::unseal(vault_client, &root_token).await {
-                                Ok(_) => info!("Vault unsealed successfully"),
-                                Err(e) => error!("Failed to unseal Vault: {:?}", e),
-                            }
-                        } else {
-                            error!("Root token not found in secret data");
-                        }
-                    } else {
-                        error!("Secret has no data");
-                    }
-                }
-                Err(e) => error!("Failed to get root token secret: {:?}", e),
-            };
-        }
-        Ok(vaultrs::sys::ServerStatus::OK) => {
-            info!("Vault is unsealed");
-            // Vault is unsealed and ready to go
-            result = true;
-        }
-        Ok(status) => {
-            info!("Vault unhandled status: {:?}", status);
-        }
-        Err(ref e) => {
-            error!("Error getting Vault status: {:?}", e);
-        }
-    }
-    result
-}
+const MAX_ATTEMPTS: u32 = 5;
+const MAX_BACKOFF_SECS: u64 = 60;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> ExitCode {
     tracing_subscriber::fmt::init();
 
-    // Create clients with proper error handling
-    let vault = vault::client().await?;
-    info!("Vault settings: {:?}", vault.settings);
-
-    let k8s_client = k8s::client().await?;
-
-    let max_count = 5;
-    let mut count = 0;
-    let mut count_increment = 2;
-    while !ensure(&vault, &k8s_client).await {
-        info!("Vault is not ready");
-        if count >= max_count {
-            error!("Vault is not ready after {} attempts", count);
-            break;
+    let vault_client = match vault::client().await {
+        Ok(c) => c,
+        Err(e) => {
+            error!(error = ?e, "failed to create Vault client");
+            return ExitCode::FAILURE;
         }
-        count += 1;
-        // Prevent overflow with saturating multiplication and max delay of 60 seconds
-        count_increment = (count_increment * count).min(60);
-        tokio::time::sleep(std::time::Duration::from_secs(count_increment)).await;
+    };
+    info!(address = %vault_client.settings.address, "Vault client created");
+
+    let k8s_client = match k8s::client().await {
+        Ok(c) => c,
+        Err(e) => {
+            error!(error = ?e, "failed to create Kubernetes client");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut attempt: u32 = 0;
+    let mut delay_secs: u64 = 2;
+
+    loop {
+        match ensure(&vault_client, &k8s_client).await {
+            Ok(ReadyState::Ready) => return ExitCode::SUCCESS,
+            Ok(ReadyState::NotReady) => info!("Vault is not ready"),
+            Err(e) => error!(error = ?e, "ensure failed"),
+        }
+
+        attempt += 1;
+        if attempt >= MAX_ATTEMPTS {
+            error!(attempts = attempt, "Vault did not become ready");
+            return ExitCode::FAILURE;
+        }
+
+        delay_secs = delay_secs
+            .saturating_mul(u64::from(attempt))
+            .min(MAX_BACKOFF_SECS);
+        tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
     }
-    Ok(())
 }

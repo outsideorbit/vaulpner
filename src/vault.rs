@@ -1,20 +1,30 @@
-/*
- */
-
-use tracing::*;
+use tracing::debug;
 use vaultrs::api::sys::requests::StartInitializationRequest;
+use vaultrs::api::sys::responses::StartInitializationResponse;
 use vaultrs::client::{VaultClient, VaultClientSettingsBuilder};
-use vaultrs::{api::sys::responses::StartInitializationResponse, error::ClientError};
+use vaultrs::error::ClientError;
 
-pub async fn client() -> Result<VaultClient, Box<dyn std::error::Error>> {
-    let settings: vaultrs::client::VaultClientSettings = VaultClientSettingsBuilder::default()
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("failed to build Vault client settings")]
+    BuildSettings(#[source] Box<dyn std::error::Error + Send + Sync>),
+
+    #[error("failed to create Vault client")]
+    CreateClient(#[source] ClientError),
+
+    #[error("Vault returned no unseal keys")]
+    NoUnsealKeys,
+
+    #[error(transparent)]
+    Vault(#[from] ClientError),
+}
+
+pub async fn client() -> Result<VaultClient, Error> {
+    let settings = VaultClientSettingsBuilder::default()
         .build()
-        .map_err(|e| format!("Failed to build Vault client settings: {:?}", e))?;
+        .map_err(|e| Error::BuildSettings(Box::new(e)))?;
 
-    let client = VaultClient::new(settings)
-        .map_err(|e| format!("Failed to create Vault client: {:?}", e))?;
-
-    Ok(client)
+    VaultClient::new(settings).map_err(Error::CreateClient)
 }
 
 pub async fn start_initialization(
@@ -24,24 +34,14 @@ pub async fn start_initialization(
     vaultrs::sys::start_initialization(vault, 1, 1, Some(&mut opts)).await
 }
 
-pub async fn initialize(vault: &VaultClient) -> Result<String, ClientError> {
-    match start_initialization(vault).await {
-        Ok(init_response) => {
-            debug!("Vault initialized successfully: {:?}", init_response);
-            // NOTE: This will only work in the event that the initialization
-            // allows for a singular key for unlocking; if that changes, this
-            // will need to be updated to reflect a more dynamic response
-            Ok(init_response.keys[0].clone())
-        }
-        Err(e) => {
-            error!("Failed to initialize vault: {:?}", e);
-            Err(e)
-        }
-    }
+pub async fn initialize(vault: &VaultClient) -> Result<String, Error> {
+    let response = start_initialization(vault).await?;
+    debug!("Vault initialization complete");
+    response.keys.first().cloned().ok_or(Error::NoUnsealKeys)
 }
 
-pub async fn unseal(vault: &VaultClient, key: &str) -> Result<(), ClientError> {
-    let response = vaultrs::sys::unseal(vault, Some(key.to_string()), None, None).await?;
-    debug!("Vault unsealed successfully: {:?}", response);
+pub async fn unseal(vault: &VaultClient, key: &str) -> Result<(), Error> {
+    vaultrs::sys::unseal(vault, Some(key.to_string()), None, None).await?;
+    debug!("Vault unseal request accepted");
     Ok(())
 }
