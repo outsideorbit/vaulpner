@@ -1,7 +1,38 @@
 # CHANGELOG
 
 
-## v0.1.0 (2025-10-13)
+## v0.1.9 (2026-05-24)
+
+### ⚠️ BREAKING CHANGE — Secret Format
+
+The Kubernetes secret used to store Vault initialization data has changed.
+**Existing deployments must migrate before upgrading** (see migration guide below).
+
+| | Previous (`≤ v0.1.0`) | Current (`v0.1.9+`) |
+|---|---|---|
+| Secret name | `vault-root-token` | `vault-init` |
+| Keys | `root` (unseal key, mislabelled) | `unseal-key-0` … `unseal-key-N`, `root-token` |
+| Encoding | Double-base64 (manually encoded + k8s base64) | Raw bytes (k8s-standard base64 only) |
+
+**Migration:** Delete the old secret and allow vaulpner to re-initialize Vault on next start:
+```bash
+kubectl delete secret vault-root-token -n <namespace>
+# Vault will be re-initialized on next vaulpner start
+```
+
+### Features / Refactoring
+
+* refactor: rewrite to hexagonal architecture (Ports & Adapters)
+  - `src/core/` — domain model, port traits, vault lifecycle service (no external crate imports)
+  - `src/adapters/` — `VaultAdapter` (vaultrs) and `K8sAdapter` (kube) implement ports
+  - `src/main.rs` — wiring only
+* fix: persist both unseal keys **and** root token to Kubernetes secret on initialization (previously root token was silently discarded)
+* fix: use unseal key (not root token) for vault unsealing on restart
+* chore: enforce coding standards — RPITIT boxing, no `#[async_trait]`, structured tracing, `PartialEq`/`Eq` on all domain types
+* ci: add `version-and-tag` workflow job to anchor semver tags on each release
+* ci: add `github-release` workflow job to publish GitHub releases with container image table
+
+
 
 ### Bug Fixes
 

@@ -2500,7 +2500,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vaulpner"
-version = "0.0.1"
+version = "0.1.9"
 dependencies = [
  "base64",
  "darling 0.20.11",

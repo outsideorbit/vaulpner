@@ -179,18 +179,21 @@ vault server -dev -dev-root-token-id="root"
 
 ### Kubernetes Secret
 
-vaulpner stores the Vault root token in a Kubernetes secret with the following structure:
+vaulpner stores Vault initialization data in a Kubernetes secret with the following structure:
 
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
-  name: vault-root-token
+  name: vault-init
   namespace: vault
 type: Opaque
 data:
-  root: <base64-encoded-root-token>
+  unseal-key-0: <base64-encoded-unseal-key>   # first unseal key
+  root-token: <base64-encoded-root-token>      # root token
 ```
+
+> **Note:** Multiple unseal keys are stored as `unseal-key-0`, `unseal-key-1`, etc. when Vault is configured with `key-shares > 1`.
 
 ## 🔧 Usage
 
@@ -214,8 +217,8 @@ spec:
         - name: VAULT_TOKEN
           valueFrom:
             secretKeyRef:
-              name: vault-root-token
-              key: root
+              name: vault-init
+              key: root-token
         # ... your app configuration
     initContainers:
     - name: vaulpner
@@ -236,8 +239,8 @@ spec:
 
 1. **Status Check**: vaulpner checks if Vault is initialized and unsealed
 2. **Initialization**: If uninitialized, it initializes Vault with a single unseal key (key-shares=1, key-threshold=1)
-3. **Token Storage**: Stores the root token in a Kubernetes secret named `vault-root-token`
-4. **Unsealing**: If sealed, retrieves the root token from the secret and unseals Vault using the single key
+3. **Token Storage**: Stores all unseal keys and the root token in a Kubernetes secret named `vault-init`
+4. **Unsealing**: If sealed, retrieves the unseal key from the `vault-init` secret and unseals Vault
 5. **Retry Logic**: Implements exponential backoff with a maximum of 5 attempts
 
 **Important:** This approach uses a single unseal key for simplicity in development and testing environments. For production use, consider using Vault's auto-unseal features or multiple unseal keys with proper key management.
@@ -292,10 +295,10 @@ kubectl get rolebinding vault-secret-manager -n vault -o yaml
 #### Secret Not Found
 ```bash
 # Check if secret exists
-kubectl get secret vault-root-token -n vault
+kubectl get secret vault-init -n vault
 
 # Check secret contents
-kubectl get secret vault-root-token -n vault -o yaml
+kubectl get secret vault-init -n vault -o yaml
 ```
 
 ### Debug Mode
