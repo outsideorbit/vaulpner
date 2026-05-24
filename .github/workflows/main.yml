@@ -9,6 +9,46 @@ jobs:
   semantic-version:
     uses: ./.github/workflows/semantic-version.yml
 
+  version-and-tag:
+    needs:
+      - semantic-version
+    if: needs.semantic-version.outputs.has_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo-set-version binary
+        id: cache-cargo-edit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-set-version
+          key: ${{ runner.os }}-cargo-edit-0.13.10
+
+      - name: Install cargo-edit
+        if: steps.cache-cargo-edit.outputs.cache-hit != 'true'
+        run: cargo install cargo-edit --version "=0.13.10" --no-default-features --features set-version --locked
+
+      - name: Bump Cargo.toml version
+        run: cargo set-version "${{ needs.semantic-version.outputs.version }}"
+
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml
+          git commit -m "chore: bump version to ${{ needs.semantic-version.outputs.version }} [skip ci]"
+          git push origin HEAD:main
+          git tag "v${{ needs.semantic-version.outputs.version }}"
+          git push origin "v${{ needs.semantic-version.outputs.version }}"
+
   build-and-push:
     needs:
       - semantic-version
@@ -26,3 +66,61 @@ jobs:
       patch: ${{ needs.semantic-version.outputs.patch }}
       version: ${{ needs.semantic-version.outputs.version }}
       additional_tag: ""
+
+  github-release:
+    needs:
+      - semantic-version
+      - version-and-tag
+      - build-and-push
+    if: needs.semantic-version.outputs.has_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.semantic-version.outputs.version }}"
+          PREV_VERSION="${{ needs.semantic-version.outputs.previous_version }}"
+          MAJOR="${{ needs.semantic-version.outputs.major }}"
+          MINOR="${{ needs.semantic-version.outputs.minor }}"
+          REGISTRY="ghcr.io/${{ github.repository_owner }}/vaulpner"
+
+          AUTO_NOTES=$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            --method POST \
+            -f tag_name="v${VERSION}" \
+            -f previous_tag_name="v${PREV_VERSION}" \
+            --jq '.body')
+
+          printf '## Container Images\n\n```\ndocker pull %s:%s\n```\n\n' \
+            "${REGISTRY}" "${VERSION}" > release-notes.md
+
+          printf '| Tag | Purpose |\n|-----|---------|\n' >> release-notes.md
+          printf '| `%s:latest` | Latest stable |\n' "${REGISTRY}" >> release-notes.md
+          printf '| `%s:%s` | This release |\n' "${REGISTRY}" "${VERSION}" >> release-notes.md
+          printf '| `%s:%s.%s` | Minor version pin |\n' "${REGISTRY}" "${MAJOR}" "${MINOR}" >> release-notes.md
+          printf '| `%s:%s` | Major version pin |\n' "${REGISTRY}" "${MAJOR}" >> release-notes.md
+          printf '| `%s:%s-debug` | Debug build (with symbols + tools) |\n\n---\n\n' \
+            "${REGISTRY}" "${VERSION}" >> release-notes.md
+
+          printf '%s\n' "${AUTO_NOTES}" >> release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.semantic-version.outputs.version }}"
+          MAJOR="${{ needs.semantic-version.outputs.major }}"
+
+          FLAGS="--title v${VERSION} --notes-file release-notes.md"
+          if [ "${MAJOR}" = "0" ]; then
+            FLAGS="${FLAGS} --prerelease"
+          fi
+
+          gh release create "v${VERSION}" ${FLAGS}
